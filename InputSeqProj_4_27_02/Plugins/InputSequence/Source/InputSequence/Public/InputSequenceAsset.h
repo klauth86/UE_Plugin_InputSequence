@@ -4,9 +4,9 @@
 
 #include "UObject/Object.h"
 #include "Templates/SubclassOf.h"
+#include "Engine/EngineBaseTypes.h"
 #include "InputSequenceAsset.generated.h"
 
-enum EInputEvent;
 class UEdGraph;
 
 USTRUCT()
