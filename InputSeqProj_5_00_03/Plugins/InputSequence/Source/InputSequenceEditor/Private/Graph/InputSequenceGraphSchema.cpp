@@ -264,7 +264,8 @@ void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
 
 				state.isOverridingResetAfterTime = pressNode->IsOverridingResetAfterTime();
 				state.isResetAfterTime = pressNode->IsResetAfterTime();
-				state.ResetAfterTime = pressNode->GetResetAfterTime();
+
+				state.TimeParam = pressNode->GetResetAfterTime();
 			}
 			else if (UInputSequenceGraphNode_Release* releaseNode = Cast<UInputSequenceGraphNode_Release>(currentGraphNode))
 			{
@@ -286,12 +287,13 @@ void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
 
 				state.isOverridingResetAfterTime = releaseNode->IsOverridingResetAfterTime();
 				state.isResetAfterTime = releaseNode->IsResetAfterTime();
-				state.ResetAfterTime = releaseNode->GetResetAfterTime();
+
+				state.TimeParam = releaseNode->GetResetAfterTime();
 
 				state.canBePassedAfterTime = releaseNode->CanBePassedAfterTime();
 				if (state.canBePassedAfterTime)
 				{
-					state.ResetAfterTime = releaseNode->GetPassedAfterTime();
+					state.TimeParam = releaseNode->GetPassedAfterTime();
 				}
 			}
 

@@ -71,7 +71,7 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 						{
 							match = state.IsOpen();
 
-							if (state.AccumulatedTime < state.ResetAfterTime)
+							if (state.AccumulatedTime < state.TimeParam)
 							{
 								match = false;
 
@@ -107,7 +107,7 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 
 				if (state.isOverridingResetAfterTime ? state.isResetAfterTime : isResetAfterTime)
 				{
-					if (state.AccumulatedTime > (state.isOverridingResetAfterTime ? state.ResetAfterTime : ResetAfterTime))
+					if (state.AccumulatedTime > (state.isOverridingResetAfterTime ? state.TimeParam : ResetAfterTime))
 					{
 						RequestReset(activeIndex);
 						ActiveIndice.Remove(activeIndex);

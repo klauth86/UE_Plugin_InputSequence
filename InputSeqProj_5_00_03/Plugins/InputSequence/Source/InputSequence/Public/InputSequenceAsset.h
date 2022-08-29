@@ -68,7 +68,8 @@ public:
 
 		isOverridingResetAfterTime = 0;
 		isResetAfterTime = 0;
-		ResetAfterTime = 0;
+		
+		TimeParam = 0;
 
 		isOverridingRequirePreciseMatch = 0;
 		requirePreciseMatch = 0;
@@ -147,8 +148,9 @@ public:
 		uint8 isOverridingResetAfterTime : 1;
 	UPROPERTY()
 		uint8 isResetAfterTime : 1;
+
 	UPROPERTY()
-		float ResetAfterTime;
+		float TimeParam;
 
 	UPROPERTY()
 		uint8 isOverridingRequirePreciseMatch : 1;
