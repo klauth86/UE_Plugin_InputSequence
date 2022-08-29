@@ -67,11 +67,13 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 				{
 					if (state.canBePassedAfterTime)
 					{
+						float accumulatedTime = state.AccumulatedTime;
+
 						if (state.ConsumeInput(inputActionEvents))
 						{
 							match = state.IsOpen();
 
-							if (state.AccumulatedTime < state.TimeParam)
+							if (accumulatedTime < state.TimeParam)
 							{
 								match = false;
 
