@@ -63,7 +63,8 @@ public:
 
 		IsGoToStartNode = 0;
 		IsInputNode = 0;
-		IsStartNode = 0;
+		
+		canBePassedAfterTime = 0;
 
 		isOverridingResetAfterTime = 0;
 		isResetAfterTime = 0;
@@ -138,8 +139,9 @@ public:
 		uint8 IsGoToStartNode : 1;
 	UPROPERTY()
 		uint8 IsInputNode : 1;
+
 	UPROPERTY()
-		uint8 IsStartNode : 1;
+		uint8 canBePassedAfterTime : 1;
 
 	UPROPERTY()
 		uint8 isOverridingResetAfterTime : 1;

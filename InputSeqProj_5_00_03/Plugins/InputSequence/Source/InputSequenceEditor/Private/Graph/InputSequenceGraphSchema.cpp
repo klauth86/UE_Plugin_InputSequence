@@ -287,10 +287,12 @@ void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
 				state.isOverridingResetAfterTime = releaseNode->IsOverridingResetAfterTime();
 				state.isResetAfterTime = releaseNode->IsResetAfterTime();
 				state.ResetAfterTime = releaseNode->GetResetAfterTime();
-			}
-			else if (UInputSequenceGraphNode_Start* startNode = Cast<UInputSequenceGraphNode_Start>(currentGraphNode))
-			{
-				state.IsStartNode = 1;
+
+				state.canBePassedAfterTime = releaseNode->CanBePassedAfterTime();
+				if (state.canBePassedAfterTime)
+				{
+					state.ResetAfterTime = releaseNode->GetPassedAfterTime();
+				}
 			}
 
 			TArray<UEdGraphNode*> linkedNodes;
@@ -774,6 +776,9 @@ FText UInputSequenceGraphNode_Press::GetTooltipText() const
 
 UInputSequenceGraphNode_Release::UInputSequenceGraphNode_Release(const FObjectInitializer& ObjectInitializer) :Super(ObjectInitializer)
 {
+	canBePassedAfterTime = 0;
+	PassedAfterTime = 3;
+
 	isOverridingRequirePreciseMatch = 0;
 	requirePreciseMatch = 0;
 

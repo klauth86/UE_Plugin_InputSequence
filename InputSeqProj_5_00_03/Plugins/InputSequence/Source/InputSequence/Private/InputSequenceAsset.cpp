@@ -56,7 +56,7 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 
 								RequestReset(activeIndex);
 								ActiveIndice.Remove(activeIndex);
-								
+
 								break;
 							}
 						}
@@ -65,7 +65,25 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 
 				if (match && !state.IsOpen())
 				{
-					match = state.ConsumeInput(inputActionEvents) && state.IsOpen();
+					if (state.canBePassedAfterTime)
+					{
+						if (state.ConsumeInput(inputActionEvents))
+						{
+							match = state.IsOpen();
+
+							if (state.AccumulatedTime < state.ResetAfterTime)
+							{
+								match = false;
+
+								RequestReset(activeIndex);
+								ActiveIndice.Remove(activeIndex);
+							}
+						}
+					}
+					else
+					{
+						match = state.ConsumeInput(inputActionEvents) && state.IsOpen();
+					}
 				}
 
 				if (match) MakeTransition(activeIndex, state.NextIndice, outEventCalls);
@@ -84,6 +102,8 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 				if (!state.IsInputNode) continue;
 
 				state.AccumulatedTime += DeltaTime;
+
+				if (state.canBePassedAfterTime) continue; // States that can be passed only after time are not reset by time at all
 
 				if (state.isOverridingResetAfterTime ? state.isResetAfterTime : isResetAfterTime)
 				{
@@ -138,7 +158,6 @@ void UInputSequenceAsset::MakeTransition(int32 fromIndex, const TSet<int32>& nex
 		}
 
 		ActiveIndice.Remove(fromIndex);
-		state.Reset();
 	}
 }
 
