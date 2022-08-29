@@ -1,0 +1,1 @@
+"D:\UE_4.26\Engine\Build\BatchFiles\RunUAT.bat" BuildPlugin -Plugin="D:\UE_Projects\UE_Plugin_InputSequence\InputSeqProj_4_26_02\Plugins\InputSequence\InputSequence.uplugin" -Package="D:\UE_Projects\UE_Plugin_InputSequence\InputSeqProj_4_26_02\Packaging\Tmp" -Rocket -VS2022
