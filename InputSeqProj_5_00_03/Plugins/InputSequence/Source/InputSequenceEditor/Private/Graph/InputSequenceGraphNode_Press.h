@@ -54,10 +54,6 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Press node", meta = (DisplayPriority = 1, EditCondition = isOverridingRequirePreciseMatch, EditConditionHides))
 		uint8 requirePreciseMatch : 1;
 
-	/* Node Time interval, that overrides asset parameter */
-	UPROPERTY(EditAnywhere, Category = "Press node", meta = (DisplayPriority = 12, UIMin = 0.01, Min = 0.01, UIMax = 10, Max = 10, EditCondition = "isOverridingResetAfterTime && isResetAfterTime", EditConditionHides))
-		float ResetAfterTime;
-
 	/* If true, node will override it's owning asset parameters */
 	UPROPERTY(EditAnywhere, Category = "Press node", meta = (DisplayPriority = 10))
 		uint8 isOverridingResetAfterTime : 1;
@@ -65,6 +61,10 @@ protected:
 	/* If true, node will reset it's owning asset if no any successful steps are made during some time interval */
 	UPROPERTY(EditAnywhere, Category = "Press node", meta = (DisplayPriority = 11, EditCondition = isOverridingResetAfterTime, EditConditionHides))
 		uint8 isResetAfterTime : 1;
+
+	/* Node Time interval, that overrides asset parameter */
+	UPROPERTY(EditAnywhere, Category = "Press node", meta = (DisplayPriority = 12, UIMin = 0.01, Min = 0.01, UIMax = 10, Max = 10, EditCondition = "isOverridingResetAfterTime && isResetAfterTime", EditConditionHides))
+		float ResetAfterTime;
 
 	/* State object for Event calls when this state is reset by ticking */
 	UPROPERTY(EditAnywhere, Category = "Press node", meta = (DisplayPriority = 20))
