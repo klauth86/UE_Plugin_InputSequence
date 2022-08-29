@@ -24,15 +24,15 @@ public:
 
 	virtual FText GetTooltipText() const;
 
+	bool IsOverridingRequirePreciseMatch() const { return isOverridingRequirePreciseMatch; }
+
+	bool RequirePreciseMatch() const { return requirePreciseMatch; }
+
+	bool IsOverridingResetAfterTime() const { return isOverridingResetAfterTime; }
+
+	bool IsResetAfterTime() const { return isResetAfterTime; }
+
 	float GetResetAfterTime() const { return ResetAfterTime; }
-
-	uint8 IsOverridingRequirePreciseMatch() const { return isOverridingRequirePreciseMatch; }
-
-	uint8 RequirePreciseMatch() const { return requirePreciseMatch; }
-
-	uint8 IsOverridingResetAfterTime() const { return isOverridingResetAfterTime; }
-
-	uint8 IsResetAfterTime() const { return isResetAfterTime; }
 
 	UObject* GetStateObject() const { return StateObject; }
 
