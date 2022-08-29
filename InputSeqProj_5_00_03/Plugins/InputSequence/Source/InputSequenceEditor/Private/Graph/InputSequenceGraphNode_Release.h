@@ -2,17 +2,19 @@
 
 #pragma once
 
-#include "EdGraph/EdGraphNode.h"
+#include "Graph/InputSequenceGraphNode_Dynamic.h"
 #include "InputSequenceGraphNode_Release.generated.h"
 
 class UInputSequenceEvent;
 
 UCLASS()
-class UInputSequenceGraphNode_Release : public UEdGraphNode
+class UInputSequenceGraphNode_Release : public UInputSequenceGraphNode_Dynamic
 {
 	GENERATED_UCLASS_BODY()
 
 public:
+
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 
 	virtual void AllocateDefaultPins() override;
 

@@ -793,6 +793,16 @@ UInputSequenceGraphNode_Release::UInputSequenceGraphNode_Release(const FObjectIn
 	StateContext = "";
 }
 
+void UInputSequenceGraphNode_Release::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UInputSequenceGraphNode_Release, canBePassedAfterTime))
+	{
+		OnUpdateGraphNode.ExecuteIfBound();
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
 void UInputSequenceGraphNode_Release::AllocateDefaultPins()
 {
 	CreatePin(EGPD_Input, UInputSequenceGraphSchema::PC_Exec, NAME_None);
@@ -801,7 +811,9 @@ void UInputSequenceGraphNode_Release::AllocateDefaultPins()
 
 FText UInputSequenceGraphNode_Release::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("UInputSequenceGraphNode_Release_Title", "Release node");
+	return canBePassedAfterTime
+		? FText::Format(LOCTEXT("UInputSequenceGraphNode_Release_TitleWithDelay", "Release node [{0}]"), FText::FromString(FString::SanitizeFloat(PassedAfterTime, 1)))
+		: LOCTEXT("UInputSequenceGraphNode_Release_Title", "Release node");
 }
 
 FLinearColor UInputSequenceGraphNode_Release::GetNodeTitleColor() const { return FLinearColor::Blue; }
