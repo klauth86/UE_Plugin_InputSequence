@@ -18,8 +18,6 @@ public:
 
 	FInputActionState(TArray<EInputEvent> inputEvents = {}) : InputEvents(inputEvents), Index(INDEX_NONE) {}
 
-	void Reset() { Index = INDEX_NONE; }
-
 	bool IsOpen() const { return !InputEvents.IsValidIndex(Index + 1); }
 
 	bool ConsumeInput(const EInputEvent inputEvent)
@@ -32,6 +30,8 @@ public:
 
 		return false;
 	}
+
+	void Reset() { Index = INDEX_NONE; }
 
 protected:
 	
@@ -63,20 +63,59 @@ public:
 
 		IsGoToStartNode = 0;
 		IsInputNode = 0;
-		IsStartNode = 0;
+		
+		canBePassedAfterTime = 0;
 
 		isOverridingResetAfterTime = 0;
 		isResetAfterTime = 0;
-		ResetAfterTime = 0;
+		
+		TimeParam = 0;
 
 		isOverridingRequirePreciseMatch = 0;
 		requirePreciseMatch = 0;
 	}
 
+	bool IsEmpty() const { return InputActions.Num() == 0; }
+
+	bool IsOpen() const
+	{
+		for (const TPair<FName, FInputActionState>& inputActionEntry : InputActions)
+		{
+			const FName& actionName = inputActionEntry.Key;
+			const FInputActionState& inputActionState = inputActionEntry.Value;
+
+			if (!inputActionState.IsOpen()) return false;
+		}
+
+		return true;
+	}
+
+	bool ConsumeInput(const TMap<FName, TEnumAsByte<EInputEvent>> inputActionEvents)
+	{
+		bool result = false;
+
+		for (TPair<FName, FInputActionState>& inputActionEntry : InputActions)
+		{
+			const FName& actionName = inputActionEntry.Key;
+			FInputActionState& inputActionState = inputActionEntry.Value;
+
+			if (inputActionEvents.Contains(actionName) && !inputActionState.IsOpen())
+			{
+				if (inputActionState.ConsumeInput(inputActionEvents[actionName]))
+				{
+					AccumulatedTime = 0;
+					result = true;
+				}
+			}
+		}
+
+		return result;
+	}
+
 	void Reset()
 	{
 		AccumulatedTime = 0;
-		for (TPair<FName, FInputActionState>& inputAction : InputActions) inputAction.Value.Reset();
+		for (TPair<FName, FInputActionState>& inputActionEntry : InputActions) inputActionEntry.Value.Reset();
 	}
 
 	float AccumulatedTime;
@@ -101,15 +140,17 @@ public:
 		uint8 IsGoToStartNode : 1;
 	UPROPERTY()
 		uint8 IsInputNode : 1;
+
 	UPROPERTY()
-		uint8 IsStartNode : 1;
+		uint8 canBePassedAfterTime : 1;
 
 	UPROPERTY()
 		uint8 isOverridingResetAfterTime : 1;
 	UPROPERTY()
 		uint8 isResetAfterTime : 1;
+
 	UPROPERTY()
-		float ResetAfterTime;
+		float TimeParam;
 
 	UPROPERTY()
 		uint8 isOverridingRequirePreciseMatch : 1;
@@ -212,13 +253,11 @@ public:
 
 protected:
 
+	void MakeTransition(int32 fromIndex, const TSet<int32>& nextIndice, TArray<FInputSequenceEventCall>& outEventCalls);
+
 	void RequestReset(int32 sourceIndex);
 
-	void StepFrom(const int32 nodeIndex, const TMap<FName, TEnumAsByte<EInputEvent>>& inputActionEvents, TArray<FInputSequenceEventCall>& outEventCalls, const bool stepForward);
-
-	void StepToNext(const TSet<int32>& nextIndice, TArray<FInputSequenceEventCall>& outEventCalls);
-
-	void CheckResetRequests(TArray<FInputSequenceEventCall>& outEventCalls);
+	void ProcessResetSources(TArray<FInputSequenceEventCall>& outEventCalls);
 
 public:
 
@@ -234,11 +273,9 @@ public:
 
 protected:
 
+	mutable FCriticalSection resetSourcesCS;
+
 	TSet<int32> ActiveIndice;
-
-	TSet<int32> PassedIndice;
-
-	TSet<int32> NextIndice;
 
 	/* Reset sources for this Event call */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input Sequence Asset", meta = (DisplayPriority = 20))
