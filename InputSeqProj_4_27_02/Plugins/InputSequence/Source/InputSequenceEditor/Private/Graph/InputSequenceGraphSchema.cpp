@@ -226,13 +226,15 @@ void UInputSequenceGraph::PreSave(const class ITargetPlatform* TargetPlatform)
 
 			linkedNodesMapping.Emplace();
 
+			FInputSequenceState& state = inputSequenceAsset->States[emplacedIndex];
+
 			if (UInputSequenceGraphNode_GoToStart* goToStartNode = Cast<UInputSequenceGraphNode_GoToStart>(currentGraphNode))
 			{
-				inputSequenceAsset->States[emplacedIndex].IsGoToStartNode = 1;
+				state.IsGoToStartNode = 1;
 			}
 			else if (UInputSequenceGraphNode_Press* pressNode = Cast<UInputSequenceGraphNode_Press>(currentGraphNode))
 			{
-				inputSequenceAsset->States[emplacedIndex].IsInputNode = 1;
+				state.IsInputNode = 1;
 				for (UEdGraphPin* pin : currentGraphNode->Pins)
 				{
 					if (pin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Action)
@@ -240,54 +242,58 @@ void UInputSequenceGraph::PreSave(const class ITargetPlatform* TargetPlatform)
 						if (pin->LinkedTo.Num() == 0)
 						{
 							static FInputActionState waitForPressAndRelease({ IE_Pressed, IE_Released });
-							inputSequenceAsset->States[emplacedIndex].InputActions.Add(pin->PinName, waitForPressAndRelease);
+							state.InputActions.Add(pin->PinName, waitForPressAndRelease);
 						}
 						else
 						{
 							static FInputActionState waitForPress({ IE_Pressed });
-							inputSequenceAsset->States[emplacedIndex].InputActions.Add(pin->PinName, waitForPress);
+							state.InputActions.Add(pin->PinName, waitForPress);
 						}
 					}
 				}
 
-				inputSequenceAsset->States[emplacedIndex].StateObject = pressNode->GetStateObject();
-				inputSequenceAsset->States[emplacedIndex].StateContext = pressNode->GetStateContext();
-				inputSequenceAsset->States[emplacedIndex].EnterEventClasses = pressNode->GetEnterEventClasses();
-				inputSequenceAsset->States[emplacedIndex].PassEventClasses = pressNode->GetPassEventClasses();
-				inputSequenceAsset->States[emplacedIndex].ResetEventClasses = pressNode->GetResetEventClasses();
+				state.StateObject = pressNode->GetStateObject();
+				state.StateContext = pressNode->GetStateContext();
+				state.EnterEventClasses = pressNode->GetEnterEventClasses();
+				state.PassEventClasses = pressNode->GetPassEventClasses();
+				state.ResetEventClasses = pressNode->GetResetEventClasses();
 
-				inputSequenceAsset->States[emplacedIndex].isOverridingRequirePreciseMatch = pressNode->IsOverridingRequirePreciseMatch();
-				inputSequenceAsset->States[emplacedIndex].requirePreciseMatch = pressNode->RequirePreciseMatch();
+				state.isOverridingRequirePreciseMatch = pressNode->IsOverridingRequirePreciseMatch();
+				state.requirePreciseMatch = pressNode->RequirePreciseMatch();
 
-				inputSequenceAsset->States[emplacedIndex].isOverridingResetAfterTime = pressNode->IsOverridingResetAfterTime();
-				inputSequenceAsset->States[emplacedIndex].isResetAfterTime = pressNode->IsResetAfterTime();
-				inputSequenceAsset->States[emplacedIndex].ResetAfterTime = pressNode->GetResetAfterTime();
+				state.isOverridingResetAfterTime = pressNode->IsOverridingResetAfterTime();
+				state.isResetAfterTime = pressNode->IsResetAfterTime();
+
+				state.TimeParam = pressNode->GetResetAfterTime();
 			}
 			else if (UInputSequenceGraphNode_Release* releaseNode = Cast<UInputSequenceGraphNode_Release>(currentGraphNode))
 			{
-				inputSequenceAsset->States[emplacedIndex].IsInputNode = 1;
+				state.IsInputNode = 1;
 				for (UEdGraphPin* pin : currentGraphNode->Pins)
 				{
 					if (pin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Action)
 					{
 						static FInputActionState waitForRelease({ IE_Released });
-						inputSequenceAsset->States[emplacedIndex].InputActions.Add(pin->PinName, waitForRelease);
+						state.InputActions.Add(pin->PinName, waitForRelease);
 					}
 				}
 
-				inputSequenceAsset->States[emplacedIndex].StateObject = releaseNode->GetStateObject();
-				inputSequenceAsset->States[emplacedIndex].StateContext = releaseNode->GetStateContext();
-				inputSequenceAsset->States[emplacedIndex].EnterEventClasses = releaseNode->GetEnterEventClasses();
-				inputSequenceAsset->States[emplacedIndex].PassEventClasses = releaseNode->GetPassEventClasses();
-				inputSequenceAsset->States[emplacedIndex].ResetEventClasses = releaseNode->GetResetEventClasses();
+				state.StateObject = releaseNode->GetStateObject();
+				state.StateContext = releaseNode->GetStateContext();
+				state.EnterEventClasses = releaseNode->GetEnterEventClasses();
+				state.PassEventClasses = releaseNode->GetPassEventClasses();
+				state.ResetEventClasses = releaseNode->GetResetEventClasses();
 
-				inputSequenceAsset->States[emplacedIndex].isOverridingResetAfterTime = releaseNode->IsOverridingResetAfterTime();
-				inputSequenceAsset->States[emplacedIndex].isResetAfterTime = releaseNode->IsResetAfterTime();
-				inputSequenceAsset->States[emplacedIndex].ResetAfterTime = releaseNode->GetResetAfterTime();
-			}
-			else if (UInputSequenceGraphNode_Start* startNode = Cast<UInputSequenceGraphNode_Start>(currentGraphNode))
-			{
-				inputSequenceAsset->States[emplacedIndex].IsStartNode = 1;
+				state.isOverridingResetAfterTime = releaseNode->IsOverridingResetAfterTime();
+				state.isResetAfterTime = releaseNode->IsResetAfterTime();
+
+				state.TimeParam = releaseNode->GetResetAfterTime();
+
+				state.canBePassedAfterTime = releaseNode->CanBePassedAfterTime();
+				if (state.canBePassedAfterTime)
+				{
+					state.TimeParam = releaseNode->GetPassedAfterTime();
+				}
 			}
 
 			TArray<UEdGraphNode*> linkedNodes;
@@ -771,6 +777,9 @@ FText UInputSequenceGraphNode_Press::GetTooltipText() const
 
 UInputSequenceGraphNode_Release::UInputSequenceGraphNode_Release(const FObjectInitializer& ObjectInitializer) :Super(ObjectInitializer)
 {
+	canBePassedAfterTime = 0;
+	PassedAfterTime = 3;
+
 	isOverridingRequirePreciseMatch = 0;
 	requirePreciseMatch = 0;
 
@@ -783,6 +792,16 @@ UInputSequenceGraphNode_Release::UInputSequenceGraphNode_Release(const FObjectIn
 	StateContext = "";
 }
 
+void UInputSequenceGraphNode_Release::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UInputSequenceGraphNode_Release, canBePassedAfterTime))
+	{
+		OnUpdateGraphNode.ExecuteIfBound();
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
 void UInputSequenceGraphNode_Release::AllocateDefaultPins()
 {
 	CreatePin(EGPD_Input, UInputSequenceGraphSchema::PC_Exec, NAME_None);
@@ -791,7 +810,9 @@ void UInputSequenceGraphNode_Release::AllocateDefaultPins()
 
 FText UInputSequenceGraphNode_Release::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("UInputSequenceGraphNode_Release_Title", "Release node");
+	return canBePassedAfterTime
+		? FText::Format(LOCTEXT("UInputSequenceGraphNode_Release_TitleWithDelay", "Release node [{0}]"), FText::FromString(FString::SanitizeFloat(PassedAfterTime, 1)))
+		: LOCTEXT("UInputSequenceGraphNode_Release_Title", "Release node");
 }
 
 FLinearColor UInputSequenceGraphNode_Release::GetNodeTitleColor() const { return FLinearColor::Blue; }
