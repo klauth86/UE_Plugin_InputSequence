@@ -44,16 +44,18 @@ struct FInputSequenceGraphSchemaAction_AddPin : public FEdGraphSchemaAction
 {
 	GENERATED_BODY()
 
-	FName ActionName;
+	FName InputName;
 
-	int32 ActionIndex;
+	int32 InputIndex;
 
-	int32 CorrectedActionIndex;
+	int32 CorrectedInputIndex;
 
-	FInputSequenceGraphSchemaAction_AddPin() : FEdGraphSchemaAction(), ActionName(NAME_None), ActionIndex(INDEX_NONE), CorrectedActionIndex(INDEX_NONE) {}
+	bool IsAxis;
+
+	FInputSequenceGraphSchemaAction_AddPin() : FEdGraphSchemaAction(), InputName(NAME_None), InputIndex(INDEX_NONE), CorrectedInputIndex(INDEX_NONE), IsAxis(false) {}
 
 	FInputSequenceGraphSchemaAction_AddPin(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping)
-		: FEdGraphSchemaAction(MoveTemp(InNodeCategory), MoveTemp(InMenuDesc), MoveTemp(InToolTip), InGrouping), ActionName(NAME_None), ActionIndex(INDEX_NONE), CorrectedActionIndex(INDEX_NONE)
+		: FEdGraphSchemaAction(MoveTemp(InNodeCategory), MoveTemp(InMenuDesc), MoveTemp(InToolTip), InGrouping), InputName(NAME_None), InputIndex(INDEX_NONE), CorrectedInputIndex(INDEX_NONE), IsAxis(false)
 	{}
 
 	virtual UEdGraphNode* PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode = true) override;
@@ -71,6 +73,8 @@ public:
 	static const FName PC_Action;
 
 	static const FName PC_Add;
+
+	static const FName PC_Axis;
 
 	static const FName PC_HubAdd;
 

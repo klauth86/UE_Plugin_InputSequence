@@ -16,29 +16,40 @@ struct INPUTSEQUENCE_API FInputActionState
 
 public:
 
-	FInputActionState(TArray<EInputEvent> inputEvents = {}) : InputEvents(inputEvents), Index(INDEX_NONE) {}
+	FInputActionState(TArray<EInputEvent> inputEvents = {}, float from = 0, float to = 0) : InputEvents(inputEvents), Index(INDEX_NONE), From(from), To(to) {}
 
-	bool IsOpen() const { return !InputEvents.IsValidIndex(Index + 1); }
+	bool IsOpen_Action() const { return !InputEvents.IsValidIndex(Index + 1); }
 
-	bool ConsumeInput(const EInputEvent inputEvent)
+	bool ConsumeInput_Action(const EInputEvent inputEvent)
 	{
-		if (InputEvents.IsValidIndex(Index + 1) && InputEvents[Index + 1] == inputEvent)
-		{
-			Index++;
-			return true;
-		}
-
+		if (InputEvents.IsValidIndex(Index + 1) && InputEvents[Index + 1] == inputEvent) { Index++; return true; }
 		return false;
 	}
+
+	bool IsOpen_Axis() const { return Index >= 0; }
+
+	bool ConsumeInput_Axis(float axisValue)
+	{
+		if (From <= axisValue && axisValue <= To) { Index++; return true; }
+		return false;
+	}
+
+	bool IsOpen(bool isAxis) const { return isAxis ? IsOpen_Axis() : IsOpen_Action(); }
 
 	void Reset() { Index = INDEX_NONE; }
 
 protected:
-	
+
 	UPROPERTY()
 		TArray<TEnumAsByte<EInputEvent>> InputEvents;
 
 	int32 Index;
+
+	UPROPERTY()
+		float From;
+
+	UPROPERTY()
+		float To;
 };
 
 USTRUCT()
@@ -63,16 +74,17 @@ public:
 
 		IsGoToStartNode = 0;
 		IsInputNode = 0;
-		
+		IsAxisNode = 0;
+
 		canBePassedAfterTime = 0;
 
 		isOverridingResetAfterTime = 0;
 		isResetAfterTime = 0;
-		
-		TimeParam = 0;
 
 		isOverridingRequirePreciseMatch = 0;
 		requirePreciseMatch = 0;
+
+		TimeParam = 0;
 	}
 
 	bool IsEmpty() const { return InputActions.Num() == 0; }
@@ -84,13 +96,13 @@ public:
 			const FName& actionName = inputActionEntry.Key;
 			const FInputActionState& inputActionState = inputActionEntry.Value;
 
-			if (!inputActionState.IsOpen()) return false;
+			if (!inputActionState.IsOpen(IsAxisNode)) return false;
 		}
 
 		return true;
 	}
 
-	bool ConsumeInput(const TMap<FName, TEnumAsByte<EInputEvent>> inputActionEvents)
+	bool ConsumeInput(const TMap<FName, TEnumAsByte<EInputEvent>> inputActionEvents, const TMap<FName, float>& inputAxisEvents)
 	{
 		bool result = false;
 
@@ -99,9 +111,11 @@ public:
 			const FName& actionName = inputActionEntry.Key;
 			FInputActionState& inputActionState = inputActionEntry.Value;
 
-			if (inputActionEvents.Contains(actionName) && !inputActionState.IsOpen())
+			if (IsAxisNode && inputAxisEvents.Contains(actionName) && !inputActionState.IsOpen(IsAxisNode) ||
+				!IsAxisNode && inputActionEvents.Contains(actionName) && !inputActionState.IsOpen(IsAxisNode))
 			{
-				if (inputActionState.ConsumeInput(inputActionEvents[actionName]))
+				if (IsAxisNode && inputActionState.ConsumeInput_Axis(inputAxisEvents[actionName]) ||
+					!IsAxisNode && inputActionState.ConsumeInput_Action(inputActionEvents[actionName]))
 				{
 					AccumulatedTime = 0;
 					result = true;
@@ -140,6 +154,8 @@ public:
 		uint8 IsGoToStartNode : 1;
 	UPROPERTY()
 		uint8 IsInputNode : 1;
+	UPROPERTY()
+		uint8 IsAxisNode : 1;
 
 	UPROPERTY()
 		uint8 canBePassedAfterTime : 1;
@@ -150,12 +166,12 @@ public:
 		uint8 isResetAfterTime : 1;
 
 	UPROPERTY()
-		float TimeParam;
-
-	UPROPERTY()
 		uint8 isOverridingRequirePreciseMatch : 1;
 	UPROPERTY()
 		uint8 requirePreciseMatch : 1;
+
+	UPROPERTY()
+		float TimeParam;
 };
 
 USTRUCT(BlueprintType)
@@ -246,7 +262,7 @@ class INPUTSEQUENCE_API UInputSequenceAsset : public UObject
 public:
 
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence Asset")
-		void OnInput(const float DeltaTime, const bool bGamePaused, const TMap<FName, TEnumAsByte<EInputEvent>>& inputActionEvents, TArray<FInputSequenceEventCall>& outEventCalls);
+		void OnInput(const float DeltaTime, const bool bGamePaused, const TMap<FName, TEnumAsByte<EInputEvent>>& inputActionEvents, const TMap<FName, float>& inputAxisEvents, TArray<FInputSequenceEventCall>& outEventCalls);
 
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence Asset")
 		void RequestReset(UObject* sourceObject, const FString& sourceContext);

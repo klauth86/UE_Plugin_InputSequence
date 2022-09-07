@@ -35,7 +35,7 @@ public class InputSequenceEditor : ModuleRules
 			new string[]
 			{
 				"CoreUObject", "InputSequence", "UnrealEd", "AssetTools", "SlateCore", "Slate", "EditorStyle", "Engine",
-				"GraphEditor", "KismetWidgets", "ApplicationCore"
+				"GraphEditor", "KismetWidgets", "ApplicationCore", "InputCore"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
