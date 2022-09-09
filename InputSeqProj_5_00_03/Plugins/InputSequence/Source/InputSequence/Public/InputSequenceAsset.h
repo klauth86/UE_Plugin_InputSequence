@@ -275,11 +275,13 @@ protected:
 
 	void MakeTransition(int32 fromIndex, const TSet<int32>& nextIndice, TArray<FInputSequenceEventCall>& outEventCalls);
 
-	void EnterNode(int32 nextIndex, TArray<FInputSequenceEventCall>& outEventCalls);
+	void RequestResetWithNode(int32 nodeIndex, FInputSequenceState& state);
 
-	void PassNode(int32 fromIndex, TArray<FInputSequenceEventCall>& outEventCalls);
+	void EnterNode(int32 nodeIndex, TArray<FInputSequenceEventCall>& outEventCalls);
 
-	void RequestReset(int32 sourceIndex);
+	void PassNode(int32 nodeIndex, TArray<FInputSequenceEventCall>& outEventCalls);
+
+	void RequestReset(int32 nodeIndex);
 
 	void ProcessResetSources(TArray<FInputSequenceEventCall>& outEventCalls);
 
