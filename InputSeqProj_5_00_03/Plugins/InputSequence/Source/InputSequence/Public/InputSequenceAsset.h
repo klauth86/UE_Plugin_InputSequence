@@ -68,11 +68,11 @@ public:
 		PassEventClasses.Reset();
 		ResetEventClasses.Reset();
 		NextIndice.Reset();
+		FirstLayerParentIndex = INDEX_NONE;
 
 		StateObject = nullptr;
 		StateContext = "";
 
-		IsGoToStartNode = 0;
 		IsInputNode = 0;
 		IsAxisNode = 0;
 
@@ -86,6 +86,10 @@ public:
 
 		TimeParam = 0;
 	}
+
+	bool IsStartNode() const { return FirstLayerParentIndex == INDEX_NONE; }
+
+	bool IsFirstLayer() const { return FirstLayerParentIndex == 0; }
 
 	bool IsEmpty() const { return InputActions.Num() == 0; }
 
@@ -144,14 +148,14 @@ public:
 		TArray<TSubclassOf<UInputSequenceEvent>> ResetEventClasses;
 	UPROPERTY()
 		TSet<int32> NextIndice;
+	UPROPERTY()
+		int32 FirstLayerParentIndex;
 
 	UPROPERTY()
 		UObject* StateObject;
 	UPROPERTY()
 		FString StateContext;
 
-	UPROPERTY()
-		uint8 IsGoToStartNode : 1;
 	UPROPERTY()
 		uint8 IsInputNode : 1;
 	UPROPERTY()

@@ -28,12 +28,12 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 		{
 			FInputSequenceState& state = States[activeIndex];
 
-			if (state.IsGoToStartNode)
+			if (!state.IsInputNode)
 			{
 				RequestReset(activeIndex);
 				ActiveIndice.Remove(activeIndex);
 			}
-			else if (state.IsInputNode && inputActionEvents.Num())
+			else if (inputActionEvents.Num())
 			{
 				bool match = true;
 
@@ -199,7 +199,7 @@ void UInputSequenceAsset::ProcessResetSources(TArray<FInputSequenceEventCall>& o
 			{
 				const FInputSequenceState& state = States[resetSource.SourceIndex];
 
-				bResetAll |= state.IsGoToStartNode;
+				bResetAll |= !state.IsInputNode;
 
 				for (const TSubclassOf<UInputSequenceEvent>& resetEventClass : state.ResetEventClasses)
 				{

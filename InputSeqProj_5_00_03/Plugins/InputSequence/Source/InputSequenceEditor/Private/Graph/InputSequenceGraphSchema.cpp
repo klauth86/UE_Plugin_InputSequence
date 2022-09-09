@@ -219,28 +219,32 @@ void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
 			TArray<FGuid> Guids;
 		};
 
+		struct FNodesQueueEntry {
+			UEdGraphNode* Node = nullptr;
+			int32 FirstLayerParentIndex = INDEX_NONE;
+
+			FNodesQueueEntry(UEdGraphNode* node = nullptr, int32 firstLayerParentIndex = INDEX_NONE) : Node(node), FirstLayerParentIndex(firstLayerParentIndex) {}
+		};
+
 		TArray<FGuidCollection> linkedNodesMapping;
 
 		TMap<FGuid, int> indexMapping;
 
-		TQueue<UEdGraphNode*> graphNodesQueue;
-		graphNodesQueue.Enqueue(Nodes[0]);
+		TQueue<FNodesQueueEntry> graphNodesQueue;
+		graphNodesQueue.Enqueue(FNodesQueueEntry(Nodes[0], INDEX_NONE));
 
-		UEdGraphNode* currentGraphNode = nullptr;
-		while (graphNodesQueue.Dequeue(currentGraphNode))
+		FNodesQueueEntry currentGraphNodeEntry(nullptr, INDEX_NONE);
+		while (graphNodesQueue.Dequeue(currentGraphNodeEntry))
 		{
 			int32 emplacedIndex = inputSequenceAsset->States.Emplace();
-			indexMapping.Add(currentGraphNode->NodeGuid, emplacedIndex);
+			indexMapping.Add(currentGraphNodeEntry.Node->NodeGuid, emplacedIndex);
 
 			linkedNodesMapping.Emplace();
 
 			FInputSequenceState& state = inputSequenceAsset->States[emplacedIndex];
+			state.FirstLayerParentIndex = currentGraphNodeEntry.FirstLayerParentIndex;
 
-			if (UInputSequenceGraphNode_GoToStart* goToStartNode = Cast<UInputSequenceGraphNode_GoToStart>(currentGraphNode))
-			{
-				state.IsGoToStartNode = 1;
-			}
-			else if (UInputSequenceGraphNode_Input* inputNode = Cast<UInputSequenceGraphNode_Input>(currentGraphNode))
+			if (UInputSequenceGraphNode_Input* inputNode = Cast<UInputSequenceGraphNode_Input>(currentGraphNodeEntry.Node))
 			{
 				state.IsInputNode = 1;
 
@@ -258,9 +262,9 @@ void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
 
 				state.TimeParam = inputNode->GetResetAfterTime();
 
-				if (UInputSequenceGraphNode_Press* pressNode = Cast<UInputSequenceGraphNode_Press>(currentGraphNode))
+				if (UInputSequenceGraphNode_Press* pressNode = Cast<UInputSequenceGraphNode_Press>(currentGraphNodeEntry.Node))
 				{
-					for (UEdGraphPin* pin : currentGraphNode->Pins)
+					for (UEdGraphPin* pin : pressNode->Pins)
 					{
 						if (pin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Action)
 						{
@@ -277,9 +281,9 @@ void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
 						}
 					}
 				}
-				else if (UInputSequenceGraphNode_Release* releaseNode = Cast<UInputSequenceGraphNode_Release>(currentGraphNode))
+				else if (UInputSequenceGraphNode_Release* releaseNode = Cast<UInputSequenceGraphNode_Release>(currentGraphNodeEntry.Node))
 				{
-					for (UEdGraphPin* pin : currentGraphNode->Pins)
+					for (UEdGraphPin* pin : releaseNode->Pins)
 					{
 						if (pin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Action)
 						{
@@ -294,11 +298,11 @@ void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
 						state.TimeParam = releaseNode->GetPassedAfterTime();
 					}
 				}
-				else if (UInputSequenceGraphNode_Axis* axisNode = Cast<UInputSequenceGraphNode_Axis>(currentGraphNode))
+				else if (UInputSequenceGraphNode_Axis* axisNode = Cast<UInputSequenceGraphNode_Axis>(currentGraphNodeEntry.Node))
 				{
 					state.IsAxisNode = 1;
 
-					for (UEdGraphPin* pin : currentGraphNode->Pins)
+					for (UEdGraphPin* pin : axisNode->Pins)
 					{
 						if (pin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Axis)
 						{
@@ -312,14 +316,18 @@ void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
 					}
 				}
 			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("!!!! %s"), *currentGraphNodeEntry.Node->GetClass()->GetName())
+			}
 
 			TArray<UEdGraphNode*> linkedNodes;
-			GetNextNodes(currentGraphNode, linkedNodes);
+			GetNextNodes(currentGraphNodeEntry.Node, linkedNodes);
 
 			for (UEdGraphNode* linkedNode : linkedNodes)
 			{
 				linkedNodesMapping[emplacedIndex].Guids.Add(linkedNode->NodeGuid);
-				graphNodesQueue.Enqueue(linkedNode);
+				graphNodesQueue.Enqueue(FNodesQueueEntry(linkedNode, currentGraphNodeEntry.FirstLayerParentIndex > 0 ? currentGraphNodeEntry.FirstLayerParentIndex : emplacedIndex));
 			}
 		}
 
