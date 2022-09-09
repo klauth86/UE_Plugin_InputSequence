@@ -480,7 +480,7 @@ const FPinConnectionResponse UInputSequenceGraphSchema::CanCreateConnection(cons
 
 	if (pinA->Direction == pinB->Direction) return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("PinsOfSameDirection", "Both pins have same direction (both input or both output)"));
 
-	if (pinA->PinType.PinCategory != pinB->PinType.PinCategory) return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("PinsMismatched", "The pin types are mismatched (Flow pins should be connected to Flow pins, Input pins - to Input pins)"));
+	if (pinA->PinType.PinCategory != pinB->PinType.PinCategory) return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("PinsMismatched", "The pin types are mismatched (Flow pins should be connected to Flow pins, Input Action pins - to Input Action pins)"));
 
 	return FPinConnectionResponse(CONNECT_RESPONSE_BREAK_OTHERS_AB, TEXT(""));
 }
@@ -1133,7 +1133,7 @@ void SGraphPin_Action::Construct(const FArguments& Args, UEdGraphPin* InPin)
 		SNew(SWrapBox)
 		.PreferredSize(150.f);
 
-	if (!bIsInput) // Input pin
+	if (!bIsInput) // Output pin
 	{
 		LabelAndValue->AddSlot()
 			.VAlign(VAlign_Center)
@@ -1147,7 +1147,7 @@ void SGraphPin_Action::Construct(const FArguments& Args, UEdGraphPin* InPin)
 				LabelWidget
 			];
 	}
-	else // Output pin
+	else // Input pin
 	{
 		LabelAndValue->AddSlot()
 			.VAlign(VAlign_Center)
@@ -2058,9 +2058,8 @@ void SGraphPin_HubExec::Construct(const FArguments& Args, UEdGraphPin* InPin)
 	}
 
 	TSharedPtr<SHorizontalBox> PinContent;
-	if (bIsInput)
+	if (bIsInput) // Input pin
 	{
-		// Input pin
 		FullPinHorizontalRowWidget = PinContent =
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
@@ -2077,9 +2076,8 @@ void SGraphPin_HubExec::Construct(const FArguments& Args, UEdGraphPin* InPin)
 				LabelAndValue.ToSharedRef()
 			];
 	}
-	else
+	else // Output pin
 	{
-		// Output pin
 		FullPinHorizontalRowWidget = PinContent = SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
