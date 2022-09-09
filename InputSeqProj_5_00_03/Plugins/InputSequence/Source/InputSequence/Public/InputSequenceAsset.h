@@ -224,10 +224,6 @@ public:
 	/* State context for this Event call */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Sequence Event Call")
 		FString Context;
-
-	/* Reset sources for this Event call */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Sequence Event Call")
-		TArray<FInputSequenceResetSource> ResetSources;
 };
 
 UCLASS(Abstract, editinlinenew, BlueprintType, Blueprintable)
@@ -266,7 +262,7 @@ class INPUTSEQUENCE_API UInputSequenceAsset : public UObject
 public:
 
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence Asset")
-		void OnInput(const float DeltaTime, const bool bGamePaused, const TMap<FName, TEnumAsByte<EInputEvent>>& inputActionEvents, const TMap<FName, float>& inputAxisEvents, TArray<FInputSequenceEventCall>& outEventCalls);
+		void OnInput(const float DeltaTime, const bool bGamePaused, const TMap<FName, TEnumAsByte<EInputEvent>>& inputActionEvents, const TMap<FName, float>& inputAxisEvents, TArray<FInputSequenceEventCall>& outEventCalls, TArray<FInputSequenceResetSource>& outResetSources);
 
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence Asset")
 		void RequestReset(UObject* sourceObject, const FString& sourceContext);
@@ -281,9 +277,9 @@ protected:
 
 	void PassNode(int32 nodeIndex, TArray<FInputSequenceEventCall>& outEventCalls);
 
-	void RequestReset(int32 nodeIndex);
+	void ProcessResetSources(TArray<FInputSequenceEventCall>& outEventCalls, TArray<FInputSequenceResetSource>& outResetSources);
 
-	void ProcessResetSources(TArray<FInputSequenceEventCall>& outEventCalls);
+	void ProcessResetSources(bool& bResetAll, TSet<int32>& nodeSources, TSet<int32>& resetFLParents, TSet<int32>& checkFLParents, TArray<FInputSequenceResetSource>& outResetSources);
 
 public:
 
@@ -303,27 +299,26 @@ protected:
 
 	TSet<int32> ActiveIndice;
 
-	/* Reset sources for this Event call */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input Sequence Asset", meta = (DisplayPriority = 20))
+	UPROPERTY()
 		TArray<FInputSequenceResetSource> ResetSources;
 
 	/* Asset Time interval, after which asset will be reset to initial state if no any successful steps will be made during that period */
-	UPROPERTY(EditAnywhere, BlueprintReadWRite, Category = "Input Sequence Asset", meta = (DisplayPriority = 2, UIMin = 0.01, Min = 0.01, UIMax = 10, Max = 10, EditCondition = isResetAfterTime, EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence Asset", meta = (DisplayPriority = 2, UIMin = 0.01, Min = 0.01, UIMax = 10, Max = 10, EditCondition = isResetAfterTime, EditConditionHides))
 		float ResetAfterTime;
 
 	/* If true, any mismatched input will reset asset to initial state */
-	UPROPERTY(EditAnywhere, BlueprintReadWRite, Category = "Input Sequence Asset", meta = (DisplayPriority = 0))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence Asset", meta = (DisplayPriority = 0))
 		uint8 requirePreciseMatch : 1;
 
 	/* If true, asset will be reset if no any successful steps are made during some time interval */
-	UPROPERTY(EditAnywhere, BlueprintReadWRite, Category = "Input Sequence Asset", meta = (DisplayPriority = 1))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence Asset", meta = (DisplayPriority = 1))
 		uint8 isResetAfterTime : 1;
 
 	/* If true, active states will continue to try stepping further even if Game is paused (Input Sequence Asset is stepping by OnInput method call) */
-	UPROPERTY(EditAnywhere, BlueprintReadWRite, Category = "Input Sequence Asset", meta = (DisplayPriority = 10))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence Asset", meta = (DisplayPriority = 10))
 		uint8 bStepFromStatesWhenGamePaused : 1;
 
 	/* If true, active states will continue to tick even if Game is paused (Input Sequence Asset is ticking by OnInput method call) */
-	UPROPERTY(EditAnywhere, BlueprintReadWRite, Category = "Input Sequence Asset", meta = (DisplayPriority = 11))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence Asset", meta = (DisplayPriority = 11))
 		uint8 bTickStatesWhenGamePaused : 1;
 };

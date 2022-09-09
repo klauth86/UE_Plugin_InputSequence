@@ -16,7 +16,7 @@ UInputSequenceAsset::UInputSequenceAsset(const FObjectInitializer& objInit) :Sup
 	ResetSources.Empty();
 }
 
-void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused, const TMap<FName, TEnumAsByte<EInputEvent>>& inputActionEvents, const TMap<FName, float>& inputAxisEvents, TArray<FInputSequenceEventCall>& outEventCalls)
+void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused, const TMap<FName, TEnumAsByte<EInputEvent>>& inputActionEvents, const TMap<FName, float>& inputAxisEvents, TArray<FInputSequenceEventCall>& outEventCalls, TArray<FInputSequenceResetSource>& outResetSources)
 {
 	if (ActiveIndice.IsEmpty()) MakeTransition(0, States[0].NextIndice, outEventCalls);
 
@@ -113,7 +113,7 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 		}
 	}
 
-	ProcessResetSources(outEventCalls);
+	ProcessResetSources(outEventCalls, outResetSources);
 }
 
 void UInputSequenceAsset::MakeTransition(int32 fromIndex, const TSet<int32>& nextIndice, TArray<FInputSequenceEventCall>& outEventCalls)
@@ -139,7 +139,11 @@ void UInputSequenceAsset::RequestResetWithNode(int32 nodeIndex, FInputSequenceSt
 	}
 	else
 	{
-		RequestReset(nodeIndex);
+		FScopeLock Lock(&resetSourcesCS);
+
+		int32 emplacedIndex = ResetSources.Emplace();
+		ResetSources[emplacedIndex].SourceIndex = nodeIndex;
+
 		ActiveIndice.Remove(nodeIndex);
 	}
 }
@@ -194,116 +198,107 @@ void UInputSequenceAsset::RequestReset(UObject* sourceObject, const FString& sou
 	ResetSources[emplacedIndex].SourceContext = sourceContext;
 }
 
-void UInputSequenceAsset::RequestReset(int32 nodeIndex)
+void UInputSequenceAsset::ProcessResetSources(TArray<FInputSequenceEventCall>& outEventCalls, TArray<FInputSequenceResetSource>& outResetSources)
 {
-	FScopeLock Lock(&resetSourcesCS);
+	bool bResetAll = false;
 
-	int32 emplacedIndex = ResetSources.Emplace();
-	ResetSources[emplacedIndex].SourceIndex = nodeIndex;
+	TSet<int32> nodeSources;
+	TSet<int32> resetFLParents;
+	TSet<int32> checkFLParents;
+
+	ProcessResetSources(bResetAll, nodeSources, resetFLParents, checkFLParents, outResetSources);
+
+	for (int32 nodeIndex : nodeSources)
+	{
+		const FInputSequenceState& state = States[nodeIndex];
+
+		for (const TSubclassOf<UInputSequenceEvent>& resetEventClass : state.ResetEventClasses)
+		{
+			int32 emplacedIndex = outEventCalls.Emplace();
+			outEventCalls[emplacedIndex].EventClass = resetEventClass;
+			outEventCalls[emplacedIndex].Object = state.StateObject;
+			outEventCalls[emplacedIndex].Context = state.StateContext;
+		}
+	}
+
+	if (bResetAll)
+	{
+		for (int32 activeIndex : ActiveIndice)
+		{
+			const FInputSequenceState& state = States[activeIndex];
+
+			for (const TSubclassOf<UInputSequenceEvent>& resetEventClass : state.ResetEventClasses)
+			{
+				int32 emplacedIndex = outEventCalls.Emplace();
+				outEventCalls[emplacedIndex].EventClass = resetEventClass;
+				outEventCalls[emplacedIndex].Object = state.StateObject;
+				outEventCalls[emplacedIndex].Context = state.StateContext;
+			}
+		}
+
+		ActiveIndice.Empty();
+	}
+	else
+	{
+		for (TSet<int32>::TIterator It(ActiveIndice); It; ++It)
+		{
+			const FInputSequenceState& state = States[*It];
+
+			if (resetFLParents.Contains(state.FirstLayerParentIndex))
+			{
+				for (const TSubclassOf<UInputSequenceEvent>& resetEventClass : state.ResetEventClasses)
+				{
+					int32 emplacedIndex = outEventCalls.Emplace();
+					outEventCalls[emplacedIndex].EventClass = resetEventClass;
+					outEventCalls[emplacedIndex].Object = state.StateObject;
+					outEventCalls[emplacedIndex].Context = state.StateContext;
+				}
+
+				It.RemoveCurrent();
+
+				if (checkFLParents.Contains(state.FirstLayerParentIndex))
+				{
+					checkFLParents.Remove(state.FirstLayerParentIndex);
+				}
+			}
+			else if (checkFLParents.Contains(state.FirstLayerParentIndex))
+			{
+				checkFLParents.Remove(state.FirstLayerParentIndex);
+			}
+		}
+
+		if (resetFLParents.Num() > 0) MakeTransition(0, resetFLParents, outEventCalls);
+
+		if (checkFLParents.Num() > 0) MakeTransition(0, checkFLParents, outEventCalls);
+	}
 }
 
-void UInputSequenceAsset::ProcessResetSources(TArray<FInputSequenceEventCall>& outEventCalls)
+void UInputSequenceAsset::ProcessResetSources(bool& bResetAll, TSet<int32>& nodeSources, TSet<int32>& resetFLParents, TSet<int32>& checkFLParents, TArray<FInputSequenceResetSource>& outResetSources)
 {
 	FScopeLock Lock(&resetSourcesCS);
 
-	if (ResetSources.Num() > 0)
+	outResetSources = ResetSources;
+
+	for (const FInputSequenceResetSource& resetSource : ResetSources)
 	{
-		bool bResetAll = false;
+		bResetAll |= resetSource.SourceIndex == INDEX_NONE;
 
-		TSet<int32> firstLayerParentsToReset;
-		
-		TSet<int32> firstLayerParentsToCheck;
-
-		for (const FInputSequenceResetSource& resetSource : ResetSources)
+		if (States.IsValidIndex(resetSource.SourceIndex))
 		{
-			bResetAll |= resetSource.SourceIndex == INDEX_NONE;
+			nodeSources.Add(resetSource.SourceIndex);
 
-			if (States.IsValidIndex(resetSource.SourceIndex))
+			const FInputSequenceState& state = States[resetSource.SourceIndex];
+
+			if (!state.IsInputNode) // GoToStartNode is reseting all Active nodes that have the same FirstLayerParentIndex
 			{
-				const FInputSequenceState& state = States[resetSource.SourceIndex];
-
-				// GoToStartNode is reseting all Active nodes that have the same FirstLayerParentIndex
-
-				if (!state.IsInputNode)
-				{
-					if (!firstLayerParentsToReset.Contains(state.FirstLayerParentIndex))
-					{
-						firstLayerParentsToReset.Add(state.FirstLayerParentIndex);
-					}
-				}
-				else
-				{
-					if (!firstLayerParentsToCheck.Contains(state.FirstLayerParentIndex))
-					{
-						firstLayerParentsToCheck.Add(state.FirstLayerParentIndex);
-					}
-				}
-
-				for (const TSubclassOf<UInputSequenceEvent>& resetEventClass : state.ResetEventClasses)
-				{
-					int32 emplacedIndex = outEventCalls.Emplace();
-					outEventCalls[emplacedIndex].EventClass = resetEventClass;
-					outEventCalls[emplacedIndex].Object = state.StateObject;
-					outEventCalls[emplacedIndex].Context = state.StateContext;
-				}
+				if (!resetFLParents.Contains(state.FirstLayerParentIndex)) resetFLParents.Add(state.FirstLayerParentIndex);
+			}
+			else
+			{
+				if (!checkFLParents.Contains(state.FirstLayerParentIndex)) checkFLParents.Add(state.FirstLayerParentIndex);
 			}
 		}
-
-		if (bResetAll)
-		{
-			for (int32 activeIndex : ActiveIndice)
-			{
-				const FInputSequenceState& state = States[activeIndex];
-
-				for (const TSubclassOf<UInputSequenceEvent>& resetEventClass : state.ResetEventClasses)
-				{
-					int32 emplacedIndex = outEventCalls.Emplace();
-					outEventCalls[emplacedIndex].EventClass = resetEventClass;
-					outEventCalls[emplacedIndex].Object = state.StateObject;
-					outEventCalls[emplacedIndex].Context = state.StateContext;
-				}
-			}
-
-			ActiveIndice.Empty();
-		}
-		else
-		{
-			for (TSet<int32>::TIterator It(ActiveIndice); It; ++It)
-			{
-				const FInputSequenceState& state = States[*It];
-
-				if (firstLayerParentsToReset.Contains(state.FirstLayerParentIndex))
-				{
-					for (const TSubclassOf<UInputSequenceEvent>& resetEventClass : state.ResetEventClasses)
-					{
-						int32 emplacedIndex = outEventCalls.Emplace();
-						outEventCalls[emplacedIndex].EventClass = resetEventClass;
-						outEventCalls[emplacedIndex].Object = state.StateObject;
-						outEventCalls[emplacedIndex].Context = state.StateContext;
-					}
-
-					It.RemoveCurrent();
-
-					if (firstLayerParentsToCheck.Contains(state.FirstLayerParentIndex))
-					{
-						firstLayerParentsToCheck.Remove(state.FirstLayerParentIndex);
-					}
-				}
-				else if (firstLayerParentsToCheck.Contains(state.FirstLayerParentIndex))
-				{
-					firstLayerParentsToCheck.Remove(state.FirstLayerParentIndex);
-				}
-			}
-
-			if (firstLayerParentsToReset.Num() > 0) MakeTransition(0, firstLayerParentsToReset, outEventCalls);
-
-			if (firstLayerParentsToCheck.Num() > 0) MakeTransition(0, firstLayerParentsToCheck, outEventCalls);
-		}
-
-		////// TODO Think if we can avoid copying reset sources to each call
-
-		for (FInputSequenceEventCall& eventCall : outEventCalls) eventCall.ResetSources = ResetSources;
-
-		ResetSources.Empty();
 	}
+
+	ResetSources.Empty();
 }
