@@ -16,7 +16,7 @@ UInputSequenceAsset::UInputSequenceAsset(const FObjectInitializer& objInit) :Sup
 	ResetSources.Empty();
 }
 
-void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused, const TMap<FName, TEnumAsByte<EInputEvent>>& inputActionEvents, TArray<FInputSequenceEventCall>& outEventCalls)
+void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused, const TMap<FName, TEnumAsByte<EInputEvent>>& inputActionEvents, const TMap<FName, float>& inputAxisEvents, TArray<FInputSequenceEventCall>& outEventCalls, TArray<FInputSequenceResetSource>& outResetSources)
 {
 	if (ActiveIndice.Num() <= 0) MakeTransition(0, States[0].NextIndice, outEventCalls);
 
@@ -28,36 +28,33 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 		{
 			FInputSequenceState& state = States[activeIndex];
 
-			if (state.IsGoToStartNode)
+			if (!state.IsInputNode)
 			{
-				RequestReset(activeIndex);
-				ActiveIndice.Remove(activeIndex);
+				RequestResetWithNode(activeIndex, state);
 			}
-			else if (state.IsInputNode && inputActionEvents.Num())
+			else if (inputActionEvents.Num())
 			{
 				bool match = true;
 
-				if (requirePreciseMatch && !state.isOverridingRequirePreciseMatch || state.isOverridingRequirePreciseMatch && state.requirePreciseMatch)
+				if (!state.IsAxisNode) // No need to check Precise Match for Axis Input because it comes as continual data
 				{
-					if (inputActionEvents.Num() != state.InputActions.Num())
+					if (requirePreciseMatch && !state.isOverridingRequirePreciseMatch || state.isOverridingRequirePreciseMatch && state.requirePreciseMatch)
 					{
-						match = false;
-
-						RequestReset(activeIndex);
-						ActiveIndice.Remove(activeIndex);
-					}
-					else
-					{
-						for (TPair<FName, FInputActionState>& inputActionEntry : state.InputActions)
+						if (inputActionEvents.Num() != state.InputActions.Num())
 						{
-							if (!inputActionEvents.Contains(inputActionEntry.Key))
+							match = false;
+							RequestResetWithNode(activeIndex, state);
+						}
+						else
+						{
+							for (TPair<FName, FInputActionState>& inputActionEntry : state.InputActions)
 							{
-								match = false;
-
-								RequestReset(activeIndex);
-								ActiveIndice.Remove(activeIndex);
-
-								break;
+								if (!inputActionEvents.Contains(inputActionEntry.Key))
+								{
+									match = false;
+									RequestResetWithNode(activeIndex, state);
+									break;
+								}
 							}
 						}
 					}
@@ -69,22 +66,20 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 					{
 						float accumulatedTime = state.AccumulatedTime;
 
-						if (state.ConsumeInput(inputActionEvents))
+						if (state.ConsumeInput(inputActionEvents, inputAxisEvents))
 						{
 							match = state.IsOpen();
 
 							if (accumulatedTime < state.TimeParam)
 							{
 								match = false;
-
-								RequestReset(activeIndex);
-								ActiveIndice.Remove(activeIndex);
+								RequestResetWithNode(activeIndex, state);
 							}
 						}
 					}
 					else
 					{
-						match = state.ConsumeInput(inputActionEvents) && state.IsOpen();
+						match = state.ConsumeInput(inputActionEvents, inputAxisEvents) && state.IsOpen();
 					}
 				}
 
@@ -111,45 +106,76 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 				{
 					if (state.AccumulatedTime > (state.isOverridingResetAfterTime ? state.TimeParam : ResetAfterTime))
 					{
-						RequestReset(activeIndex);
-						ActiveIndice.Remove(activeIndex);
+						RequestResetWithNode(activeIndex, state);
 					}
 				}
 			}
 		}
 	}
 
-	ProcessResetSources(outEventCalls);
+	ProcessResetSources(outEventCalls, outResetSources);
 }
 
 void UInputSequenceAsset::MakeTransition(int32 fromIndex, const TSet<int32>& nextIndice, TArray<FInputSequenceEventCall>& outEventCalls)
 {
-	for (int32 nextIndex : nextIndice)
+	if (nextIndice.Num() > 0)
 	{
-		if (!ActiveIndice.Contains(nextIndex))
-		{
-			FInputSequenceState& state = States[nextIndex];
-
-			for (const TSubclassOf<UInputSequenceEvent>& enterEventClass : state.EnterEventClasses)
-			{
-				int32 emplacedIndex = outEventCalls.Emplace();
-				outEventCalls[emplacedIndex].EventClass = enterEventClass;
-				outEventCalls[emplacedIndex].Object = state.StateObject;
-				outEventCalls[emplacedIndex].Context = state.StateContext;
-			}
-
-			state.Reset();
-			ActiveIndice.Add(nextIndex);
-
-			// Jump through empty Input nodes
-
-			if (state.IsInputNode && state.IsEmpty()) MakeTransition(nextIndex, state.NextIndice, outEventCalls);
-		}
+		for (int32 nextIndex : nextIndice) EnterNode(nextIndex, outEventCalls);
 	}
-
-	if (ActiveIndice.Contains(fromIndex))
+	else // Make Transition to First Layer Parent if nextIndice is empty
 	{
 		FInputSequenceState& state = States[fromIndex];
+		EnterNode(state.FirstLayerParentIndex, outEventCalls);
+	}
+
+	PassNode(fromIndex, outEventCalls);
+}
+
+void UInputSequenceAsset::RequestResetWithNode(int32 nodeIndex, FInputSequenceState& state)
+{
+	if (state.IsFirstLayer())
+	{
+		state.Reset();
+	}
+	else
+	{
+		FScopeLock Lock(&resetSourcesCS);
+
+		int32 emplacedIndex = ResetSources.Emplace();
+		ResetSources[emplacedIndex].SourceIndex = nodeIndex;
+
+		ActiveIndice.Remove(nodeIndex);
+	}
+}
+
+void UInputSequenceAsset::EnterNode(int32 nodeIndex, TArray<FInputSequenceEventCall>& outEventCalls)
+{
+	if (!ActiveIndice.Contains(nodeIndex))
+	{
+		FInputSequenceState& state = States[nodeIndex];
+
+		for (const TSubclassOf<UInputSequenceEvent>& enterEventClass : state.EnterEventClasses)
+		{
+			int32 emplacedIndex = outEventCalls.Emplace();
+			outEventCalls[emplacedIndex].EventClass = enterEventClass;
+			outEventCalls[emplacedIndex].Object = state.StateObject;
+			outEventCalls[emplacedIndex].Context = state.StateContext;
+		}
+
+		state.Reset();
+		ActiveIndice.Add(nodeIndex);
+
+		// Jump through empty Input nodes
+
+		if (state.IsInputNode && state.IsEmpty()) MakeTransition(nodeIndex, state.NextIndice, outEventCalls);
+	}
+}
+
+void UInputSequenceAsset::PassNode(int32 nodeIndex, TArray<FInputSequenceEventCall>& outEventCalls)
+{
+	if (ActiveIndice.Contains(nodeIndex))
+	{
+		FInputSequenceState& state = States[nodeIndex];
 
 		for (const TSubclassOf<UInputSequenceEvent>& passEventClass : state.PassEventClasses)
 		{
@@ -159,7 +185,7 @@ void UInputSequenceAsset::MakeTransition(int32 fromIndex, const TSet<int32>& nex
 			outEventCalls[emplacedIndex].Context = state.StateContext;
 		}
 
-		ActiveIndice.Remove(fromIndex);
+		ActiveIndice.Remove(nodeIndex);
 	}
 }
 
@@ -172,62 +198,107 @@ void UInputSequenceAsset::RequestReset(UObject* sourceObject, const FString& sou
 	ResetSources[emplacedIndex].SourceContext = sourceContext;
 }
 
-void UInputSequenceAsset::RequestReset(int32 sourceIndex)
+void UInputSequenceAsset::ProcessResetSources(TArray<FInputSequenceEventCall>& outEventCalls, TArray<FInputSequenceResetSource>& outResetSources)
+{
+	bool bResetAll = false;
+
+	TSet<int32> nodeSources;
+	TSet<int32> resetFLParents;
+	TSet<int32> checkFLParents;
+
+	ProcessResetSources(bResetAll, nodeSources, resetFLParents, checkFLParents, outResetSources);
+
+	for (int32 nodeIndex : nodeSources)
+	{
+		const FInputSequenceState& state = States[nodeIndex];
+
+		for (const TSubclassOf<UInputSequenceEvent>& resetEventClass : state.ResetEventClasses)
+		{
+			int32 emplacedIndex = outEventCalls.Emplace();
+			outEventCalls[emplacedIndex].EventClass = resetEventClass;
+			outEventCalls[emplacedIndex].Object = state.StateObject;
+			outEventCalls[emplacedIndex].Context = state.StateContext;
+		}
+	}
+
+	if (bResetAll)
+	{
+		for (int32 activeIndex : ActiveIndice)
+		{
+			const FInputSequenceState& state = States[activeIndex];
+
+			for (const TSubclassOf<UInputSequenceEvent>& resetEventClass : state.ResetEventClasses)
+			{
+				int32 emplacedIndex = outEventCalls.Emplace();
+				outEventCalls[emplacedIndex].EventClass = resetEventClass;
+				outEventCalls[emplacedIndex].Object = state.StateObject;
+				outEventCalls[emplacedIndex].Context = state.StateContext;
+			}
+		}
+
+		ActiveIndice.Empty();
+	}
+	else
+	{
+		for (TSet<int32>::TIterator It(ActiveIndice); It; ++It)
+		{
+			const FInputSequenceState& state = States[*It];
+
+			if (resetFLParents.Contains(state.FirstLayerParentIndex))
+			{
+				for (const TSubclassOf<UInputSequenceEvent>& resetEventClass : state.ResetEventClasses)
+				{
+					int32 emplacedIndex = outEventCalls.Emplace();
+					outEventCalls[emplacedIndex].EventClass = resetEventClass;
+					outEventCalls[emplacedIndex].Object = state.StateObject;
+					outEventCalls[emplacedIndex].Context = state.StateContext;
+				}
+
+				It.RemoveCurrent();
+
+				if (checkFLParents.Contains(state.FirstLayerParentIndex))
+				{
+					checkFLParents.Remove(state.FirstLayerParentIndex);
+				}
+			}
+			else if (checkFLParents.Contains(state.FirstLayerParentIndex))
+			{
+				checkFLParents.Remove(state.FirstLayerParentIndex);
+			}
+		}
+
+		if (resetFLParents.Num() > 0) MakeTransition(0, resetFLParents, outEventCalls);
+
+		if (checkFLParents.Num() > 0) MakeTransition(0, checkFLParents, outEventCalls);
+	}
+}
+
+void UInputSequenceAsset::ProcessResetSources(bool& bResetAll, TSet<int32>& nodeSources, TSet<int32>& resetFLParents, TSet<int32>& checkFLParents, TArray<FInputSequenceResetSource>& outResetSources)
 {
 	FScopeLock Lock(&resetSourcesCS);
 
-	int32 emplacedIndex = ResetSources.Emplace();
-	ResetSources[emplacedIndex].SourceIndex = sourceIndex;
-}
+	outResetSources = ResetSources;
 
-void UInputSequenceAsset::ProcessResetSources(TArray<FInputSequenceEventCall>& outEventCalls)
-{
-	if (ResetSources.Num() > 0)
+	for (const FInputSequenceResetSource& resetSource : ResetSources)
 	{
-		FScopeLock Lock(&resetSourcesCS);
+		bResetAll |= resetSource.SourceIndex == INDEX_NONE;
 
-		bool bResetAll = false;
-
-		for (const FInputSequenceResetSource& resetSource : ResetSources)
+		if (States.IsValidIndex(resetSource.SourceIndex))
 		{
-			bResetAll |= resetSource.SourceIndex == INDEX_NONE;
+			nodeSources.Add(resetSource.SourceIndex);
 
-			if (States.IsValidIndex(resetSource.SourceIndex))
+			const FInputSequenceState& state = States[resetSource.SourceIndex];
+
+			if (!state.IsInputNode) // GoToStartNode is reseting all Active nodes that have the same FirstLayerParentIndex
 			{
-				const FInputSequenceState& state = States[resetSource.SourceIndex];
-
-				bResetAll |= state.IsGoToStartNode;
-
-				for (const TSubclassOf<UInputSequenceEvent>& resetEventClass : state.ResetEventClasses)
-				{
-					int32 emplacedIndex = outEventCalls.Emplace();
-					outEventCalls[emplacedIndex].EventClass = resetEventClass;
-					outEventCalls[emplacedIndex].Object = state.StateObject;
-					outEventCalls[emplacedIndex].Context = state.StateContext;
-				}
+				if (!resetFLParents.Contains(state.FirstLayerParentIndex)) resetFLParents.Add(state.FirstLayerParentIndex);
+			}
+			else
+			{
+				if (!checkFLParents.Contains(state.FirstLayerParentIndex)) checkFLParents.Add(state.FirstLayerParentIndex);
 			}
 		}
-
-		if (bResetAll)
-		{
-			for (int32 activeIndex : ActiveIndice)
-			{
-				const FInputSequenceState& state = States[activeIndex];
-
-				for (const TSubclassOf<UInputSequenceEvent>& resetEventClass : state.ResetEventClasses)
-				{
-					int32 emplacedIndex = outEventCalls.Emplace();
-					outEventCalls[emplacedIndex].EventClass = resetEventClass;
-					outEventCalls[emplacedIndex].Object = state.StateObject;
-					outEventCalls[emplacedIndex].Context = state.StateContext;
-				}
-			}
-
-			ActiveIndice.Empty();
-		}
-
-		for (FInputSequenceEventCall& eventCall : outEventCalls) eventCall.ResetSources = ResetSources;
-
-		ResetSources.Empty();
 	}
+
+	ResetSources.Empty();
 }
