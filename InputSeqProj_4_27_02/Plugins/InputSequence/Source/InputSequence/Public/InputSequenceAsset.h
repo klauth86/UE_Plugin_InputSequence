@@ -16,29 +16,40 @@ struct INPUTSEQUENCE_API FInputActionState
 
 public:
 
-	FInputActionState(TArray<EInputEvent> inputEvents = {}) : InputEvents(inputEvents), Index(INDEX_NONE) {}
+	FInputActionState(TArray<EInputEvent> inputEvents = {}, float from = 0, float to = 0) : InputEvents(inputEvents), Index(INDEX_NONE), From(from), To(to) {}
 
-	bool IsOpen() const { return !InputEvents.IsValidIndex(Index + 1); }
+	bool IsOpen_Action() const { return !InputEvents.IsValidIndex(Index + 1); }
 
-	bool ConsumeInput(const EInputEvent inputEvent)
+	bool ConsumeInput_Action(const EInputEvent inputEvent)
 	{
-		if (InputEvents.IsValidIndex(Index + 1) && InputEvents[Index + 1] == inputEvent)
-		{
-			Index++;
-			return true;
-		}
-
+		if (InputEvents.IsValidIndex(Index + 1) && InputEvents[Index + 1] == inputEvent) { Index++; return true; }
 		return false;
 	}
+
+	bool IsOpen_Axis() const { return Index >= 0; }
+
+	bool ConsumeInput_Axis(float axisValue)
+	{
+		if (From <= axisValue && axisValue <= To) { Index++; return true; }
+		return false;
+	}
+
+	bool IsOpen(bool isAxis) const { return isAxis ? IsOpen_Axis() : IsOpen_Action(); }
 
 	void Reset() { Index = INDEX_NONE; }
 
 protected:
-	
+
 	UPROPERTY()
 		TArray<TEnumAsByte<EInputEvent>> InputEvents;
 
 	int32 Index;
+
+	UPROPERTY()
+		float From;
+
+	UPROPERTY()
+		float To;
 };
 
 USTRUCT()
@@ -57,23 +68,28 @@ public:
 		PassEventClasses.Reset();
 		ResetEventClasses.Reset();
 		NextIndice.Reset();
+		FirstLayerParentIndex = INDEX_NONE;
 
 		StateObject = nullptr;
 		StateContext = "";
 
-		IsGoToStartNode = 0;
 		IsInputNode = 0;
-		
+		IsAxisNode = 0;
+
 		canBePassedAfterTime = 0;
 
 		isOverridingResetAfterTime = 0;
 		isResetAfterTime = 0;
-		
-		TimeParam = 0;
 
 		isOverridingRequirePreciseMatch = 0;
 		requirePreciseMatch = 0;
+
+		TimeParam = 0;
 	}
+
+	bool IsStartNode() const { return FirstLayerParentIndex == INDEX_NONE; }
+
+	bool IsFirstLayer() const { return FirstLayerParentIndex == 0; }
 
 	bool IsEmpty() const { return InputActions.Num() == 0; }
 
@@ -84,13 +100,13 @@ public:
 			const FName& actionName = inputActionEntry.Key;
 			const FInputActionState& inputActionState = inputActionEntry.Value;
 
-			if (!inputActionState.IsOpen()) return false;
+			if (!inputActionState.IsOpen(IsAxisNode)) return false;
 		}
 
 		return true;
 	}
 
-	bool ConsumeInput(const TMap<FName, TEnumAsByte<EInputEvent>> inputActionEvents)
+	bool ConsumeInput(const TMap<FName, TEnumAsByte<EInputEvent>> inputActionEvents, const TMap<FName, float>& inputAxisEvents)
 	{
 		bool result = false;
 
@@ -99,9 +115,11 @@ public:
 			const FName& actionName = inputActionEntry.Key;
 			FInputActionState& inputActionState = inputActionEntry.Value;
 
-			if (inputActionEvents.Contains(actionName) && !inputActionState.IsOpen())
+			if (IsAxisNode && inputAxisEvents.Contains(actionName) && !inputActionState.IsOpen(IsAxisNode) ||
+				!IsAxisNode && inputActionEvents.Contains(actionName) && !inputActionState.IsOpen(IsAxisNode))
 			{
-				if (inputActionState.ConsumeInput(inputActionEvents[actionName]))
+				if (IsAxisNode && inputActionState.ConsumeInput_Axis(inputAxisEvents[actionName]) ||
+					!IsAxisNode && inputActionState.ConsumeInput_Action(inputActionEvents[actionName]))
 				{
 					AccumulatedTime = 0;
 					result = true;
@@ -130,6 +148,8 @@ public:
 		TArray<TSubclassOf<UInputSequenceEvent>> ResetEventClasses;
 	UPROPERTY()
 		TSet<int32> NextIndice;
+	UPROPERTY()
+		int32 FirstLayerParentIndex;
 
 	UPROPERTY()
 		UObject* StateObject;
@@ -137,9 +157,9 @@ public:
 		FString StateContext;
 
 	UPROPERTY()
-		uint8 IsGoToStartNode : 1;
-	UPROPERTY()
 		uint8 IsInputNode : 1;
+	UPROPERTY()
+		uint8 IsAxisNode : 1;
 
 	UPROPERTY()
 		uint8 canBePassedAfterTime : 1;
@@ -150,12 +170,12 @@ public:
 		uint8 isResetAfterTime : 1;
 
 	UPROPERTY()
-		float TimeParam;
-
-	UPROPERTY()
 		uint8 isOverridingRequirePreciseMatch : 1;
 	UPROPERTY()
 		uint8 requirePreciseMatch : 1;
+
+	UPROPERTY()
+		float TimeParam;
 };
 
 USTRUCT(BlueprintType)
@@ -204,10 +224,6 @@ public:
 	/* State context for this Event call */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Sequence Event Call")
 		FString Context;
-
-	/* Reset sources for this Event call */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Sequence Event Call")
-		TArray<FInputSequenceResetSource> ResetSources;
 };
 
 UCLASS(Abstract, editinlinenew, BlueprintType, Blueprintable)
@@ -246,7 +262,7 @@ class INPUTSEQUENCE_API UInputSequenceAsset : public UObject
 public:
 
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence Asset")
-		void OnInput(const float DeltaTime, const bool bGamePaused, const TMap<FName, TEnumAsByte<EInputEvent>>& inputActionEvents, TArray<FInputSequenceEventCall>& outEventCalls);
+		void OnInput(const float DeltaTime, const bool bGamePaused, const TMap<FName, TEnumAsByte<EInputEvent>>& inputActionEvents, const TMap<FName, float>& inputAxisEvents, TArray<FInputSequenceEventCall>& outEventCalls, TArray<FInputSequenceResetSource>& outResetSources);
 
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence Asset")
 		void RequestReset(UObject* sourceObject, const FString& sourceContext);
@@ -255,9 +271,15 @@ protected:
 
 	void MakeTransition(int32 fromIndex, const TSet<int32>& nextIndice, TArray<FInputSequenceEventCall>& outEventCalls);
 
-	void RequestReset(int32 sourceIndex);
+	void RequestResetWithNode(int32 nodeIndex, FInputSequenceState& state);
 
-	void ProcessResetSources(TArray<FInputSequenceEventCall>& outEventCalls);
+	void EnterNode(int32 nodeIndex, TArray<FInputSequenceEventCall>& outEventCalls);
+
+	void PassNode(int32 nodeIndex, TArray<FInputSequenceEventCall>& outEventCalls);
+
+	void ProcessResetSources(TArray<FInputSequenceEventCall>& outEventCalls, TArray<FInputSequenceResetSource>& outResetSources);
+
+	void ProcessResetSources(bool& bResetAll, TSet<int32>& nodeSources, TSet<int32>& resetFLParents, TSet<int32>& checkFLParents, TArray<FInputSequenceResetSource>& outResetSources);
 
 public:
 
@@ -277,27 +299,26 @@ protected:
 
 	TSet<int32> ActiveIndice;
 
-	/* Reset sources for this Event call */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input Sequence Asset", meta = (DisplayPriority = 20))
+	UPROPERTY()
 		TArray<FInputSequenceResetSource> ResetSources;
 
 	/* Asset Time interval, after which asset will be reset to initial state if no any successful steps will be made during that period */
-	UPROPERTY(EditAnywhere, BlueprintReadWRite, Category = "Input Sequence Asset", meta = (DisplayPriority = 2, UIMin = 0.01, Min = 0.01, UIMax = 10, Max = 10, EditCondition = isResetAfterTime, EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence Asset", meta = (DisplayPriority = 2, UIMin = 0.01, Min = 0.01, UIMax = 10, Max = 10, EditCondition = isResetAfterTime, EditConditionHides))
 		float ResetAfterTime;
 
 	/* If true, any mismatched input will reset asset to initial state */
-	UPROPERTY(EditAnywhere, BlueprintReadWRite, Category = "Input Sequence Asset", meta = (DisplayPriority = 0))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence Asset", meta = (DisplayPriority = 0))
 		uint8 requirePreciseMatch : 1;
 
 	/* If true, asset will be reset if no any successful steps are made during some time interval */
-	UPROPERTY(EditAnywhere, BlueprintReadWRite, Category = "Input Sequence Asset", meta = (DisplayPriority = 1))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence Asset", meta = (DisplayPriority = 1))
 		uint8 isResetAfterTime : 1;
 
 	/* If true, active states will continue to try stepping further even if Game is paused (Input Sequence Asset is stepping by OnInput method call) */
-	UPROPERTY(EditAnywhere, BlueprintReadWRite, Category = "Input Sequence Asset", meta = (DisplayPriority = 10))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence Asset", meta = (DisplayPriority = 10))
 		uint8 bStepFromStatesWhenGamePaused : 1;
 
 	/* If true, active states will continue to tick even if Game is paused (Input Sequence Asset is ticking by OnInput method call) */
-	UPROPERTY(EditAnywhere, BlueprintReadWRite, Category = "Input Sequence Asset", meta = (DisplayPriority = 11))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence Asset", meta = (DisplayPriority = 11))
 		uint8 bTickStatesWhenGamePaused : 1;
 };
