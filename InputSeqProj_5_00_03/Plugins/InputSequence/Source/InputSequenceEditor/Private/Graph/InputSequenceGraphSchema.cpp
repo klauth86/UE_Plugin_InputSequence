@@ -1285,13 +1285,21 @@ void SGraphPin_2DAxis::Construct(const FArguments& Args, UEdGraphPin* InPin)
 	);
 
 	SetToolTip(SNew(SToolTip_Mock));
+
+	mouseIsCaptured = 0;
 }
 
 FSlateColor SGraphPin_2DAxis::GetPinTextColor() const
 {
 	UEdGraphPin* GraphPin = GetPinObj();
 
-	if (!UInputSettings::GetInputSettings()->DoesAxisExist(GraphPin->PinName)) return FLinearColor::Red;
+	FString lhs;
+	FString rhs;
+	GraphPin->PinName.ToString().Split(" ^ ", &lhs, &rhs);
+
+	if (!UInputSettings::GetInputSettings()->DoesAxisExist(FName(lhs))) return FLinearColor::Red;
+
+	if (!UInputSettings::GetInputSettings()->DoesAxisExist(FName(rhs))) return FLinearColor::Red;
 
 	if (GraphPin)
 
@@ -1327,7 +1335,9 @@ TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
 
 	const FLinearColor LabelClr = FLinearColor(1.f, 1.f, 1.f, 0.4f);
 
-	return SNew(SHorizontalBox)
+	TSharedPtr<SBorder> StickCoordsBorder = nullptr;
+
+	TSharedPtr<SWidget> resultWidget = SNew(SHorizontalBox)
 
 		+ SHorizontalBox::Slot().AutoWidth().Padding(4).VAlign(VAlign_Center)
 		[
@@ -1366,11 +1376,43 @@ TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
 
 		+ SHorizontalBox::Slot().AutoWidth().Padding(4).VAlign(VAlign_Center)
 		[
-			SNew(SBox).WidthOverride(64).HeightOverride(64)
+			SNew(SGridPanel)
+			.FillColumn(0,0).FillColumn(1, 1).FillColumn(2, 0)
+			.FillRow(0, 0).FillRow(1, 1).FillRow(2, 0)
+
+			+ SGridPanel::Slot(0, 2)
 			[
-				SNew(SImage)
+				SNew(STextBlock)
+				.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+				.Text(LOCTEXT("LeftBottomPoint", "[-1, -1]"))
+				.ColorAndOpacity(LabelClr)
+			]
+			
+			+ SGridPanel::Slot(1,1)
+			[
+				SNew(SBox).WidthOverride(64).HeightOverride(64)
+				[
+					SAssignNew(StickCoordsBorder, SBorder)
+					.OnMouseButtonUp(this, &SGraphPin_2DAxis::HandleOnMouseButtonUp)
+					.OnMouseMove(this, &SGraphPin_2DAxis::HandleOnMouseMove)
+				]
+			]
+
+			+ SGridPanel::Slot(2,0)
+			[
+				SNew(STextBlock)
+				.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+				.Text(LOCTEXT("RightTopPoint", "[1, 1]"))
+				.ColorAndOpacity(LabelClr)
 			]
 		];
+
+		if (StickCoordsBorder.IsValid())
+		{
+			StickCoordsBorder->SetOnMouseButtonDown(FPointerEventHandler::CreateRaw(this, &SGraphPin_2DAxis::HandleOnMouseButtonDown, StickCoordsBorder));
+		}
+
+		return resultWidget.ToSharedRef();
 }
 
 FString SGraphPin_2DAxis::GetCurrentValue_X() const { return GetValue(TextBox_X); }
@@ -1409,16 +1451,8 @@ void SGraphPin_2DAxis::OnChangedValueTextBox_X(float NewValue, ETextCommit::Type
 	}
 
 	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
-	const FString VectorString = MakeVectorString(ValueStr, GetValue(TextBox_Y), GetValue(TextBox_Z));
 
-	if (GraphPinObj->GetDefaultAsString() != VectorString)
-	{
-		const FScopedTransaction Transaction(LOCTEXT("ChangeVectorPinValue", "Change Vector Pin Value"));
-		GraphPinObj->Modify();
-
-		//Set new default value
-		GraphPinObj->GetSchema()->TrySetDefaultValue(*GraphPinObj, VectorString);
-	}
+	TrySetDefaultValue(MakeVectorString(ValueStr, GetValue(TextBox_Y), GetValue(TextBox_Z)));
 }
 
 void SGraphPin_2DAxis::OnChangedValueTextBox_Y(float NewValue, ETextCommit::Type CommitInfo)
@@ -1429,16 +1463,8 @@ void SGraphPin_2DAxis::OnChangedValueTextBox_Y(float NewValue, ETextCommit::Type
 	}
 
 	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
-	const FString VectorString = MakeVectorString(GetValue(TextBox_X), ValueStr, GetValue(TextBox_Z));
 
-	if (GraphPinObj->GetDefaultAsString() != VectorString)
-	{
-		const FScopedTransaction Transaction(LOCTEXT("ChangeVectorPinValue", "Change Vector Pin Value"));
-		GraphPinObj->Modify();
-
-		//Set new default value
-		GraphPinObj->GetSchema()->TrySetDefaultValue(*GraphPinObj, VectorString);
-	}
+	TrySetDefaultValue(MakeVectorString(GetValue(TextBox_X), ValueStr, GetValue(TextBox_Z)));
 }
 
 void SGraphPin_2DAxis::OnChangedValueTextBox_Z(float NewValue, ETextCommit::Type CommitInfo)
@@ -1449,16 +1475,8 @@ void SGraphPin_2DAxis::OnChangedValueTextBox_Z(float NewValue, ETextCommit::Type
 	}
 
 	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
-	const FString VectorString = MakeVectorString(GetValue(TextBox_X), GetValue(TextBox_Y), ValueStr);
 
-	if (GraphPinObj->GetDefaultAsString() != VectorString)
-	{
-		const FScopedTransaction Transaction(LOCTEXT("ChangeVectorPinValue", "Change Vector Pin Value"));
-		GraphPinObj->Modify();
-
-		//Set new default value
-		GraphPinObj->GetSchema()->TrySetDefaultValue(*GraphPinObj, VectorString);
-	}
+	TrySetDefaultValue(MakeVectorString(GetValue(TextBox_X), GetValue(TextBox_Y), ValueStr));
 }
 
 FText SGraphPin_2DAxis::ToolTipText_Raw_Label() const
@@ -1504,6 +1522,67 @@ FReply SGraphPin_2DAxis::OnClicked_Raw_RemovePin() const
 	}
 
 	return FReply::Handled();
+}
+
+FReply SGraphPin_2DAxis::HandleOnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent, TSharedPtr<SBorder> capturingWidget)
+{
+	FReply result = FReply::Handled();
+
+	if (capturingWidget.IsValid())
+	{
+		result.CaptureMouse(capturingWidget.ToSharedRef());
+		mouseIsCaptured = 1;
+	}
+
+	return result;
+}
+
+FReply SGraphPin_2DAxis::HandleOnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	mouseIsCaptured = 0;
+	return FReply::Handled().ReleaseMouseCapture();
+}
+
+FReply SGraphPin_2DAxis::HandleOnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	if (mouseIsCaptured)
+	{
+		FVector2D localPosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
+		FVector2D localSize = MyGeometry.GetLocalSize();
+
+		if (GraphPinObj->IsPendingKill())
+		{
+			return FReply::Handled();
+		}
+
+		FVector2D newValue = (2 * localPosition - localSize) / localSize;
+
+		newValue.X = FMath::RoundToFloat(newValue.X * 100) / 100;
+
+		newValue.Y = -FMath::RoundToFloat(newValue.Y * 100) / 100;
+
+		const FString ValueXStr = FString::Printf(TEXT("%f"), newValue.X);
+
+		const FString ValueYStr = FString::Printf(TEXT("%f"), newValue.Y);
+
+		TrySetDefaultValue(MakeVectorString(ValueXStr, ValueYStr, GetValue(TextBox_Z)));
+
+		return FReply::Handled();
+	}
+
+	return SGraphPin::OnMouseMove(MyGeometry, MouseEvent);
+}
+
+void SGraphPin_2DAxis::TrySetDefaultValue(const FString& VectorString)
+{
+	if (GraphPinObj->GetDefaultAsString() != VectorString)
+	{
+		const FScopedTransaction Transaction(LOCTEXT("ChangeVectorPinValue", "Change Vector Pin Value"));
+		GraphPinObj->Modify();
+
+		//Set new default value
+		GraphPinObj->GetSchema()->TrySetDefaultValue(*GraphPinObj, VectorString);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -47,4 +47,14 @@ protected:
 	FText ToolTipText_Raw_RemovePin() const;
 
 	FReply OnClicked_Raw_RemovePin() const;
+
+	FReply HandleOnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent, TSharedPtr<SBorder> capturingWidget);
+
+	FReply HandleOnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
+
+	FReply HandleOnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
+
+	void TrySetDefaultValue(const FString& VectorString);
+
+	uint8 mouseIsCaptured : 1;
 };
