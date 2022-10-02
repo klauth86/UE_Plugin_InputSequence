@@ -423,7 +423,9 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_AddPin::PerformAction(class UEdGra
 		UEdGraphNode::FCreatePinParams params;
 		params.Index = CorrectedInputIndex + execPinCount;
 		
-		AddPin(FromPin->GetOwningNode(), IsAxis ? UInputSequenceGraphSchema::PC_Axis : UInputSequenceGraphSchema::PC_Action, InputName, params);
+		const FName& pc = IsAxis ? (Is2DAxis ? UInputSequenceGraphSchema::PC_2DAxis : UInputSequenceGraphSchema::PC_Axis) : UInputSequenceGraphSchema::PC_Action;
+
+		AddPin(FromPin->GetOwningNode(), pc, InputName, params);
 	}
 
 	return ResultNode;
@@ -434,6 +436,8 @@ const FName UInputSequenceGraphSchema::PC_Exec = FName("UInputSequenceGraphSchem
 const FName UInputSequenceGraphSchema::PC_Action = FName("UInputSequenceGraphSchema_PC_Action");
 
 const FName UInputSequenceGraphSchema::PC_Add = FName("UInputSequenceGraphSchema_PC_Add");
+
+const FName UInputSequenceGraphSchema::PC_2DAxis = FName("UInputSequenceGraphSchema_PC_2DAxis");
 
 const FName UInputSequenceGraphSchema::PC_Axis = FName("UInputSequenceGraphSchema_PC_Axis");
 
@@ -533,13 +537,14 @@ public:
 			.MaxDesiredHeight(700) // Set max desired height to prevent flickering bug for menu larger than screen
 			[
 				SAssignNew(GraphMenu, SGraphActionMenu)
+				.OnCollectStaticSections(this, &SInputSequenceParameterMenu::OnCollectStaticSections)
+				.OnGetSectionTitle(this, &SInputSequenceParameterMenu::OnGetSectionTitle)
 				.OnCollectAllActions(this, &SInputSequenceParameterMenu::CollectAllActions)
 			.OnActionSelected(this, &SInputSequenceParameterMenu::OnActionSelected)
 			.SortItemsRecursively(false)
 			.AlphaSortItems(false)
 			.AutoExpandActionMenu(bAutoExpandMenu)
 			.ShowFilterTextBox(true)
-			.OnGetSectionTitle(InArgs._OnGetSectionTitle)
 			////// TODO.OnCreateCustomRowExpander_Static(&SNiagaraParameterMenu::CreateCustomActionExpander)
 			////// TODO.OnCreateWidgetForAction_Lambda([](const FCreateWidgetForActionData* InData) { return SNew(SNiagaraGraphActionWidget, InData); })
 			]
@@ -550,6 +555,10 @@ public:
 	TSharedPtr<SEditableTextBox> GetSearchBox() { return GraphMenu->GetFilterTextBox(); }
 
 protected:
+
+	virtual void OnCollectStaticSections(TArray<int32>& StaticSectionIDs) = 0;
+
+	virtual FText OnGetSectionTitle(int32 InSectionID) = 0;
 
 	virtual void CollectAllActions(FGraphActionListBuilderBase& OutAllActions) = 0;
 
@@ -585,6 +594,35 @@ public:
 
 protected:
 
+	virtual void OnCollectStaticSections(TArray<int32>& StaticSectionIDs) override
+	{
+		StaticSectionIDs.Add(1);
+
+		const bool isAxis = Node && Node->IsA<UInputSequenceGraphNode_Axis>();
+
+		if (isAxis)
+		{
+			StaticSectionIDs.Add(2);
+		}
+	}
+
+	virtual FText OnGetSectionTitle(int32 InSectionID) override
+	{
+		const bool isAxis = Node && Node->IsA<UInputSequenceGraphNode_Axis>();
+
+		if (isAxis)
+		{
+			if (InSectionID == 1) return NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Section_Axis", "Axis");
+			if (InSectionID == 2) return NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Section_2DAxis", "2D Axis");
+		}
+		else
+		{
+			if (InSectionID == 1) return NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Section_Action", "Actions");
+		}
+
+		return FText::GetEmpty();
+	}
+
 	virtual void CollectAllActions(FGraphActionListBuilderBase& OutAllActions) override
 	{
 		TSet<FName> inputNamesSet;
@@ -614,7 +652,7 @@ protected:
 			}
 			else
 			{
-				TSharedPtr<FInputSequenceGraphSchemaAction_AddPin> schemaAction(new FInputSequenceGraphSchemaAction_AddPin(FText::GetEmpty(), FText::FromName(inputName), FText::Format(NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Tooltip", "Add {0} for {1}"), FText::FromString(isAxis ? "Axis pin" : "Action pin"), FText::FromName(inputName)), 0));
+				TSharedPtr<FInputSequenceGraphSchemaAction_AddPin> schemaAction(new FInputSequenceGraphSchemaAction_AddPin(FText::GetEmpty(), FText::FromName(inputName), FText::Format(NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Tooltip", "Add {0} for {1}"), FText::FromString(isAxis ? "Axis pin" : "Action pin"), FText::FromName(inputName)), 0, 1));
 				schemaAction->InputName = inputName;
 				schemaAction->InputIndex = mappingIndex;
 				schemaAction->CorrectedInputIndex = 0;
@@ -623,6 +661,37 @@ protected:
 			}
 
 			mappingIndex++;
+		}
+
+		if (isAxis)
+		{
+			for (const FName& inputNameA : inputNamesSet)
+			{
+				for (const FName& inputNameB : inputNamesSet)
+				{
+					if (inputNameA != inputNameB)
+					{
+						FName pairedName = FName(inputNameA.ToString().Append("|").Append(inputNameB.ToString()));
+
+						if (Node && Node->FindPin(pairedName))
+						{
+							alreadyAdded.Add(mappingIndex);
+						}
+						else
+						{
+							TSharedPtr<FInputSequenceGraphSchemaAction_AddPin> schemaAction(new FInputSequenceGraphSchemaAction_AddPin(FText::GetEmpty(), FText::FromName(pairedName), FText::Format(NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Tooltip", "Add Axis pin for 2D {0}|{1}"), FText::FromName(inputNameA), FText::FromName(inputNameB)), 0, 2));
+							schemaAction->InputName = pairedName;
+							schemaAction->InputIndex = mappingIndex;
+							schemaAction->CorrectedInputIndex = 0;
+							schemaAction->IsAxis = isAxis;
+							schemaAction->Is2DAxis = 1;
+							schemaActions.Add(schemaAction);
+						}
+
+						mappingIndex++;
+					}
+				}
+			}
 		}
 
 		for (TSharedPtr<FEdGraphSchemaAction> schemaAction : schemaActions)
