@@ -17,6 +17,7 @@
 #include "EdGraphNode_Comment.h"
 
 #include "KismetPins/SGraphPinExec.h"
+#include "Graph/SGraphPin_2DAxis.h"
 #include "Graph/SGraphPin_Action.h"
 #include "Graph/SGraphPin_Add.h"
 #include "Graph/SGraphPin_Axis.h"
@@ -35,9 +36,12 @@
 #include "SPinTypeSelector.h"
 #include "SLevelOfDetailBranchNode.h"
 #include "Widgets/Layout/SWrapBox.h"
+#include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "SGraphPanel.h"
+
+const FString separator = " ^ ";
 
 template<class T>
 TSharedPtr<T> AddNewActionAs(FGraphContextMenuBuilder& ContextMenuBuilder, const FText& Category, const FText& MenuDesc, const FText& Tooltip, const int32 Grouping = 0)
@@ -153,6 +157,8 @@ TSharedPtr<SGraphPin> FInputSequenceGraphPinFactory::CreatePin(UEdGraphPin* InPi
 		if (InPin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Action) return SNew(SGraphPin_Action, InPin);
 
 		if (InPin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Add) return SNew(SGraphPin_Add, InPin);
+
+		if (InPin->PinType.PinCategory == UInputSequenceGraphSchema::PC_2DAxis) return SNew(SGraphPin_2DAxis, InPin);
 
 		if (InPin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Axis) return SNew(SGraphPin_Axis, InPin);
 
@@ -314,6 +320,20 @@ void UInputSequenceGraph::PreSave(const class ITargetPlatform* TargetPlatform)
 
 							state.InputActions.Add(pin->PinName, FInputActionState({}, Value.X, Value.Y));
 						}
+						else if (pin->PinType.PinCategory == UInputSequenceGraphSchema::PC_2DAxis)
+						{
+							FString DefaultString = pin->GetDefaultAsString();
+
+							FVector Value;
+							Value.InitFromString(DefaultString);
+
+							FString lhs;
+							FString rhs;
+							if (pin->PinName.ToString().Split(separator, &lhs, &rhs))
+							{
+								state.InputActions.Add(pin->PinName, FInputActionState({}, Value.X, Value.Y, Value.Z, lhs, rhs));
+							}
+						}
 					}
 				}
 			}
@@ -424,7 +444,9 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_AddPin::PerformAction(class UEdGra
 		UEdGraphNode::FCreatePinParams params;
 		params.Index = CorrectedInputIndex + execPinCount;
 		
-		AddPin(FromPin->GetOwningNode(), IsAxis ? UInputSequenceGraphSchema::PC_Axis : UInputSequenceGraphSchema::PC_Action, InputName, params);
+		const FName& pc = IsAxis ? (Is2DAxis ? UInputSequenceGraphSchema::PC_2DAxis : UInputSequenceGraphSchema::PC_Axis) : UInputSequenceGraphSchema::PC_Action;
+
+		AddPin(FromPin->GetOwningNode(), pc, InputName, params);
 	}
 
 	return ResultNode;
@@ -435,6 +457,8 @@ const FName UInputSequenceGraphSchema::PC_Exec = FName("UInputSequenceGraphSchem
 const FName UInputSequenceGraphSchema::PC_Action = FName("UInputSequenceGraphSchema_PC_Action");
 
 const FName UInputSequenceGraphSchema::PC_Add = FName("UInputSequenceGraphSchema_PC_Add");
+
+const FName UInputSequenceGraphSchema::PC_2DAxis = FName("UInputSequenceGraphSchema_PC_2DAxis");
 
 const FName UInputSequenceGraphSchema::PC_Axis = FName("UInputSequenceGraphSchema_PC_Axis");
 
@@ -531,18 +555,19 @@ public:
 				[
 					SNew(SBox)
 					.MinDesiredWidth(300)
-			.MaxDesiredHeight(700) // Set max desired height to prevent flickering bug for menu larger than screen
-			[
-				SAssignNew(GraphMenu, SGraphActionMenu)
-				.OnCollectAllActions(this, &SInputSequenceParameterMenu::CollectAllActions)
-			.OnActionSelected(this, &SInputSequenceParameterMenu::OnActionSelected)
-			.AlphaSortItems(false)
-			.AutoExpandActionMenu(bAutoExpandMenu)
-			.ShowFilterTextBox(true)
-			.OnGetSectionTitle(InArgs._OnGetSectionTitle)
-			////// TODO.OnCreateCustomRowExpander_Static(&SNiagaraParameterMenu::CreateCustomActionExpander)
-			////// TODO.OnCreateWidgetForAction_Lambda([](const FCreateWidgetForActionData* InData) { return SNew(SNiagaraGraphActionWidget, InData); })
-			]
+					.MaxDesiredHeight(700) // Set max desired height to prevent flickering bug for menu larger than screen
+					[
+						SAssignNew(GraphMenu, SGraphActionMenu)
+						.OnCollectAllActions(this, &SInputSequenceParameterMenu::CollectAllActions)
+						.OnCollectStaticSections(this, &SInputSequenceParameterMenu::OnCollectStaticSections)
+						.OnGetSectionTitle(this, &SInputSequenceParameterMenu::OnGetSectionTitle)
+						.OnActionSelected(this, &SInputSequenceParameterMenu::OnActionSelected)
+						.AlphaSortItems(false)
+						.AutoExpandActionMenu(bAutoExpandMenu)
+						.ShowFilterTextBox(true)
+						////// TODO.OnCreateCustomRowExpander_Static(&SNiagaraParameterMenu::CreateCustomActionExpander)
+						////// TODO.OnCreateWidgetForAction_Lambda([](const FCreateWidgetForActionData* InData) { return SNew(SNiagaraGraphActionWidget, InData); })
+					]
 				]
 			];
 	}
@@ -550,6 +575,10 @@ public:
 	TSharedPtr<SEditableTextBox> GetSearchBox() { return GraphMenu->GetFilterTextBox(); }
 
 protected:
+
+	virtual void OnCollectStaticSections(TArray<int32>& StaticSectionIDs) = 0;
+
+	virtual FText OnGetSectionTitle(int32 InSectionID) = 0;
 
 	virtual void CollectAllActions(FGraphActionListBuilderBase& OutAllActions) = 0;
 
@@ -585,6 +614,35 @@ public:
 
 protected:
 
+	virtual void OnCollectStaticSections(TArray<int32>& StaticSectionIDs) override
+	{
+		StaticSectionIDs.Add(1);
+
+		const bool isAxis = Node && Node->IsA<UInputSequenceGraphNode_Axis>();
+
+		if (isAxis)
+		{
+			StaticSectionIDs.Add(2);
+		}
+	}
+
+	virtual FText OnGetSectionTitle(int32 InSectionID) override
+	{
+		const bool isAxis = Node && Node->IsA<UInputSequenceGraphNode_Axis>();
+
+		if (isAxis)
+		{
+			if (InSectionID == 1) return NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Section_Axis", "Axis");
+			if (InSectionID == 2) return NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Section_2DAxis", "2D Axis");
+		}
+		else
+		{
+			if (InSectionID == 1) return NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Section_Action", "Actions");
+		}
+
+		return FText::GetEmpty();
+	}
+
 	virtual void CollectAllActions(FGraphActionListBuilderBase& OutAllActions) override
 	{
 		TSet<FName> inputNamesSet;
@@ -614,7 +672,7 @@ protected:
 			}
 			else
 			{
-				TSharedPtr<FInputSequenceGraphSchemaAction_AddPin> schemaAction(new FInputSequenceGraphSchemaAction_AddPin(FText::GetEmpty(), FText::FromName(inputName), FText::Format(NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Tooltip", "Add {0} for {1}"), FText::FromString(isAxis ? "Axis pin" : "Action pin"), FText::FromName(inputName)), 0));
+				TSharedPtr<FInputSequenceGraphSchemaAction_AddPin> schemaAction(new FInputSequenceGraphSchemaAction_AddPin(FText::GetEmpty(), FText::FromName(inputName), FText::Format(NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Tooltip", "Add {0} for {1}"), FText::FromString(isAxis ? "Axis pin" : "Action pin"), FText::FromName(inputName)), 0, 1));
 				schemaAction->InputName = inputName;
 				schemaAction->InputIndex = mappingIndex;
 				schemaAction->CorrectedInputIndex = 0;
@@ -623,6 +681,37 @@ protected:
 			}
 
 			mappingIndex++;
+		}
+
+		if (isAxis)
+		{
+			for (const FName& inputNameA : inputNamesSet)
+			{
+				for (const FName& inputNameB : inputNamesSet)
+				{
+					if (inputNameA != inputNameB)
+					{
+						FName pairedName = FName(inputNameA.ToString().Append(separator).Append(inputNameB.ToString()));
+
+						if (Node && Node->FindPin(pairedName))
+						{
+							alreadyAdded.Add(mappingIndex);
+						}
+						else
+						{
+							TSharedPtr<FInputSequenceGraphSchemaAction_AddPin> schemaAction(new FInputSequenceGraphSchemaAction_AddPin(FText::GetEmpty(), FText::FromName(pairedName), FText::Format(NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Tooltip", "Add Axis pin for 2D {0} ^ {1}"), FText::FromName(inputNameA), FText::FromName(inputNameB)), 0, 2));
+							schemaAction->InputName = pairedName;
+							schemaAction->InputIndex = mappingIndex;
+							schemaAction->CorrectedInputIndex = 0;
+							schemaAction->IsAxis = isAxis;
+							schemaAction->Is2DAxis = 1;
+							schemaActions.Add(schemaAction);
+						}
+
+						mappingIndex++;
+					}
+				}
+			}
 		}
 
 		for (TSharedPtr<FEdGraphSchemaAction> schemaAction : schemaActions)
@@ -931,6 +1020,821 @@ FText UInputSequenceGraphNode_Axis::GetTooltipText() const
 
 
 
+#pragma region SToolTip_Mock
+#define LOCTEXT_NAMESPACE "SToolTip_Mock"
+
+class SToolTip_Mock : public SLeafWidget, public IToolTip
+{
+public:
+
+	SLATE_BEGIN_ARGS(SToolTip_Mock) {}
+	SLATE_END_ARGS()
+
+		void Construct(const FArguments& InArgs) {}
+
+	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override { return LayerId; }
+	virtual FVector2D ComputeDesiredSize(float) const override { return FVector2D::ZeroVector; }
+
+	virtual TSharedRef<class SWidget> AsWidget() { return SNullWidget::NullWidget; }
+	virtual TSharedRef<SWidget> GetContentWidget() { return SNullWidget::NullWidget; }
+	virtual void SetContentWidget(const TSharedRef<SWidget>& InContentWidget) override {}
+	virtual bool IsEmpty() const override { return false; }
+	virtual bool IsInteractive() const { return false; }
+	virtual void OnOpening() override {}
+	virtual void OnClosed() override {}
+};
+
+#undef LOCTEXT_NAMESPACE
+#pragma endregion
+
+
+
+#pragma region S1DAxisTextBox
+#define LOCTEXT_NAMESPACE "S1DAxisTextBox"
+
+//Class implementation to create 2 editable text boxes to represent vector2D graph pin
+class S1DAxisTextBox : public SCompoundWidget
+{
+public:
+
+	SLATE_BEGIN_ARGS(S1DAxisTextBox) {}
+	SLATE_ATTRIBUTE(FString, VisibleText_X)
+		SLATE_ATTRIBUTE(FString, VisibleText_Y)
+		SLATE_EVENT(FOnFloatValueCommitted, OnFloatCommitted_Box_X)
+		SLATE_EVENT(FOnFloatValueCommitted, OnFloatCommitted_Box_Y)
+		SLATE_END_ARGS()
+
+		//Construct editable text boxes with the appropriate getter & setter functions along with tool tip text
+		void Construct(const FArguments& InArgs)
+	{
+		VisibleText_X = InArgs._VisibleText_X;
+		VisibleText_Y = InArgs._VisibleText_Y;
+		const FLinearColor LabelClr = FLinearColor(1.f, 1.f, 1.f, 0.4f);
+
+		this->ChildSlot
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0)
+			[
+				SNew(SHorizontalBox)
+
+				+ SHorizontalBox::Slot()
+			.AutoWidth().Padding(2).HAlign(HAlign_Fill)
+			[
+				SNew(STextBlock)
+				.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+			.Text(LOCTEXT("LeftParenthesis", "("))
+			.ColorAndOpacity(LabelClr)
+			]
+
+		+ SHorizontalBox::Slot()
+			.AutoWidth().Padding(2).HAlign(HAlign_Fill)
+			[
+				//Create Text box 0 
+				SNew(SNumericEntryBox<float>)
+				.Value(this, &S1DAxisTextBox::GetTypeInValue_X)
+			.OnValueCommitted(InArgs._OnFloatCommitted_Box_X)
+			.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+			.UndeterminedString(LOCTEXT("MultipleValues", "Multiple Values"))
+			.ToolTipText(LOCTEXT("VectorNodeXAxisValueLabel_ToolTip", "From value"))
+			.EditableTextBoxStyle(&FEditorStyle::GetWidgetStyle<FEditableTextBoxStyle>("Graph.VectorEditableTextBox"))
+			.BorderForegroundColor(FLinearColor::White)
+			.BorderBackgroundColor(FLinearColor::White)
+			]
+
+		+ SHorizontalBox::Slot()
+			.AutoWidth().Padding(2).HAlign(HAlign_Fill)
+			[
+				SNew(STextBlock)
+				.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+			.Text(LOCTEXT("Mediator", ","))
+			.ColorAndOpacity(LabelClr)
+			]
+
+		+ SHorizontalBox::Slot()
+			.AutoWidth().Padding(2).HAlign(HAlign_Fill)
+			[
+				//Create Text box 1
+				SNew(SNumericEntryBox<float>)
+				.Value(this, &S1DAxisTextBox::GetTypeInValue_Y)
+			.OnValueCommitted(InArgs._OnFloatCommitted_Box_Y)
+			.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+			.UndeterminedString(LOCTEXT("MultipleValues", "Multiple Values"))
+			.ToolTipText(LOCTEXT("VectorNodeYAxisValueLabel_ToolTip", "To value"))
+			.EditableTextBoxStyle(&FEditorStyle::GetWidgetStyle<FEditableTextBoxStyle>("Graph.VectorEditableTextBox"))
+			.BorderForegroundColor(FLinearColor::White)
+			.BorderBackgroundColor(FLinearColor::White)
+			]
+
+		+ SHorizontalBox::Slot()
+			.AutoWidth().Padding(2).HAlign(HAlign_Fill)
+			[
+				SNew(STextBlock)
+				.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+			.Text(LOCTEXT("RightParenthesis", ")"))
+			.ColorAndOpacity(LabelClr)
+			]
+			]
+			];
+	}
+
+private:
+
+	//Get value for X text box
+	TOptional<float> GetTypeInValue_X() const { return FCString::Atof(*(VisibleText_X.Get())); }
+
+	//Get value for Y text box
+	TOptional<float> GetTypeInValue_Y() const { return FCString::Atof(*(VisibleText_Y.Get())); }
+
+	TAttribute<FString> VisibleText_X;
+	TAttribute<FString> VisibleText_Y;
+};
+
+FString MakeVector2DString(const FString& X, const FString& Y)
+{
+	return FString(TEXT("(X=")) + X + FString(TEXT(",Y=")) + Y + FString(TEXT(")"));
+}
+
+FString MakeVectorString(const FString& X, const FString& Y, const FString& Z)
+{
+	return FString(TEXT("(X=")) + X + FString(TEXT(",Y=")) + Y + FString(TEXT(",Z=")) + Z + FString(TEXT(")"));
+}
+
+#undef LOCTEXT_NAMESPACE
+#pragma endregion
+
+
+
+#pragma region SStickZone
+#define LOCTEXT_NAMESPACE "SStickZone"
+
+class SStickZone : public SLeafWidget
+{
+public:
+
+	DECLARE_DELEGATE_TwoParams(FOnValueChanged, float, SGraphPin_2DAxis::ETextBoxIndex);
+
+	SLATE_BEGIN_ARGS(SStickZone) {}
+	SLATE_EVENT(FOnValueChanged, OnValueChanged)
+		SLATE_END_ARGS()
+
+		void Construct(const FArguments& InArgs)
+	{
+		OnValueChanged = InArgs._OnValueChanged;
+	}
+
+	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override
+	{
+		FVector2D localSize = AllottedGeometry.GetLocalSize();
+
+		TArray<FVector2D> LinePoints;
+
+		FLinearColor color = FLinearColor::White;
+		color.A = 0.25;
+
+		++LayerId;
+		FSlateDrawElement::MakeBox(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(Position * localSize - Scale * localSize / 2, Scale * localSize),
+			FEditorStyle::GetBrush("Icons.FilledCircle"), ESlateDrawEffect::None,
+			color
+		);
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(localSize.X / 2, 0.f));
+		LinePoints.Add(FVector2D(localSize.X / 2, localSize.Y));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(0, localSize.Y / 2));
+		LinePoints.Add(FVector2D(localSize.X, localSize.Y / 2));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(0, 0));
+		LinePoints.Add(FVector2D(localSize.X, 0));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(0, localSize.Y));
+		LinePoints.Add(FVector2D(localSize.X, localSize.Y));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(0, 0));
+		LinePoints.Add(FVector2D(0, localSize.Y));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(localSize.X, 0));
+		LinePoints.Add(FVector2D(localSize.X, localSize.Y));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		return LayerId;
+	}
+
+	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
+	{
+		if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+		{
+			FVector2D localSize = MyGeometry.GetLocalSize();
+			FVector2D localPosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
+
+			Position.X = localSize.X > 0 ? FMath::RoundToFloat(100 * localPosition.X / localSize.X) / 100 : 0;
+			Position.Y = localSize.Y > 0 ? FMath::RoundToFloat(100 * localPosition.Y / localSize.Y) / 100 : 0;
+
+			OnValueChanged.ExecuteIfBound(Position.X, SGraphPin_2DAxis::ETextBoxIndex::TextBox_X);
+			OnValueChanged.ExecuteIfBound(Position.Y, SGraphPin_2DAxis::ETextBoxIndex::TextBox_Y);
+
+			return FReply::Handled().CaptureMouse(SharedThis(this));
+		}
+		else
+		{
+			return FReply::Unhandled();
+		}
+	}
+
+	virtual FReply OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
+	{
+		if ((MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton) && this->HasMouseCapture())
+		{
+			return FReply::Handled().ReleaseMouseCapture();
+		}
+		else
+		{
+			return FReply::Unhandled();
+		}
+	}
+
+	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
+	{
+		if (this->HasMouseCapture())
+		{
+			if (IsHovered())
+			{
+				FVector2D localSize = MyGeometry.GetLocalSize();
+				FVector2D localPosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
+
+				Position.X = localSize.X > 0 ? FMath::RoundToFloat(100 * localPosition.X / localSize.X) / 100 : 0;
+				Position.Y = localSize.Y > 0 ? FMath::RoundToFloat(100 * localPosition.Y / localSize.Y) / 100 : 0;
+
+				OnValueChanged.ExecuteIfBound(Position.X, SGraphPin_2DAxis::ETextBoxIndex::TextBox_X);
+				OnValueChanged.ExecuteIfBound(Position.Y, SGraphPin_2DAxis::ETextBoxIndex::TextBox_Y);
+			}
+
+			return FReply::Handled();
+		}
+
+		return FReply::Unhandled();
+	}
+
+	virtual FReply OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
+	{
+		Scale.X = FMath::Max(0.f, Scale.X + (MouseEvent.GetWheelDelta() > 0 ? 0.1f : -0.1f));
+		Scale.Y = Scale.X;
+
+		OnValueChanged.ExecuteIfBound(Scale.X, SGraphPin_2DAxis::TextBox_Z);
+
+		return FReply::Handled();
+	}
+
+	virtual FVector2D ComputeDesiredSize(float) const override { return FVector2D::ZeroVector; }
+
+	FVector2D Position;
+
+	FVector2D Scale;
+
+	FOnValueChanged OnValueChanged;
+};
+
+#undef LOCTEXT_NAMESPACE
+#pragma endregion
+
+
+
+#pragma region SGraphPin_2DAxis
+#define LOCTEXT_NAMESPACE "SGraphPin_2DAxis"
+
+void SGraphPin_2DAxis::Construct(const FArguments& Args, UEdGraphPin* InPin)
+{
+	SGraphPin::FArguments InArgs = SGraphPin::FArguments();
+
+	bUsePinColorForText = InArgs._UsePinColorForText;
+	this->SetCursor(EMouseCursor::Default);
+	this->SetToolTipText(LOCTEXT("ToolTip", "Mock ToolTip"));
+
+	SetVisibility(MakeAttributeSP(this, &SGraphPin_2DAxis::GetPinVisiblity));
+
+	GraphPinObj = InPin;
+	check(GraphPinObj != NULL);
+
+	const UEdGraphSchema* Schema = GraphPinObj->GetSchema();
+	checkf(
+		Schema,
+		TEXT("Missing schema for pin: %s with outer: %s of type %s"),
+		*(GraphPinObj->GetName()),
+		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetName()) : TEXT("NULL OUTER"),
+		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetClass()->GetName()) : TEXT("NULL OUTER")
+	);
+
+	// Create the pin icon widget
+	TSharedRef<SWidget> SelfPinWidgetRef = SPinTypeSelector::ConstructPinTypeImage(
+		MakeAttributeSP(this, &SGraphPin_2DAxis::GetPinIcon),
+		MakeAttributeSP(this, &SGraphPin_2DAxis::GetPinColor),
+		MakeAttributeSP(this, &SGraphPin_2DAxis::GetSecondaryPinIcon),
+		MakeAttributeSP(this, &SGraphPin_2DAxis::GetSecondaryPinColor));
+
+	SelfPinWidgetRef->SetVisibility(EVisibility::Hidden);
+
+	TSharedRef<SWidget> PinWidgetRef = SelfPinWidgetRef;
+
+	PinImage = PinWidgetRef;
+
+	// Create the pin indicator widget (used for watched values)
+	static const FName NAME_NoBorder("NoBorder");
+	TSharedRef<SWidget> PinStatusIndicator =
+		SNew(SButton)
+		.ButtonStyle(FEditorStyle::Get(), NAME_NoBorder)
+		.Visibility(this, &SGraphPin_2DAxis::GetPinStatusIconVisibility)
+		.ContentPadding(0)
+		.OnClicked(this, &SGraphPin_2DAxis::ClickedOnPinStatusIcon)
+		[
+			SNew(SImage).Image(this, &SGraphPin_2DAxis::GetPinStatusIcon)
+		];
+
+	TSharedRef<SWidget> LabelWidget = GetLabelWidget(InArgs._PinLabelStyle);
+
+	LabelWidget->SetToolTipText(MakeAttributeRaw(this, &SGraphPin_2DAxis::ToolTipText_Raw_Label));
+
+	// Create the widget used for the pin body (status indicator, label, and value)
+
+	LabelAndValue = SNew(SWrapBox).PreferredSize(150.f);
+
+	LabelAndValue->AddSlot().VAlign(VAlign_Center)[LabelWidget];
+
+	ValueWidget = GetDefaultValueWidget();
+
+	if (ValueWidget != SNullWidget::NullWidget)
+	{
+		TSharedPtr<SBox> ValueBox;
+		LabelAndValue->AddSlot()
+			.Padding(FMargin(InArgs._SideToSideMargin, 0, 0, 0))
+			.VAlign(VAlign_Center)
+			[
+				SAssignNew(ValueBox, SBox).Padding(0.0f)
+				[
+					ValueWidget.ToSharedRef()
+				]
+			];
+
+		if (!DoesWidgetHandleSettingEditingEnabled())
+		{
+			ValueBox->SetEnabled(TAttribute<bool>(this, &SGraphPin::IsEditingEnabled));
+		}
+	}
+
+	LabelAndValue->AddSlot().VAlign(VAlign_Center)[PinStatusIndicator];
+
+	TSharedPtr<SHorizontalBox> PinContent;
+
+	FullPinHorizontalRowWidget = PinContent = SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(0, 0, InArgs._SideToSideMargin, 0)
+		[
+			SNew(SButton).ToolTipText_Raw(this, &SGraphPin_2DAxis::ToolTipText_Raw_RemovePin)
+			.Cursor(EMouseCursor::Hand)
+		.ButtonStyle(FEditorStyle::Get(), "NoBorder")
+		.ForegroundColor(FSlateColor::UseForeground())
+		.OnClicked_Raw(this, &SGraphPin_2DAxis::OnClicked_Raw_RemovePin)
+		[
+			SNew(SImage).Image(FEditorStyle::GetBrush("Cross"))
+		]
+		]
+	+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		[
+			LabelAndValue.ToSharedRef()
+		]
+	+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(InArgs._SideToSideMargin, 0, 0, 0)
+		[
+			PinWidgetRef
+		];
+
+	// Set up a hover for pins that is tinted the color of the pin.
+	SBorder::Construct(SBorder::FArguments()
+		.BorderImage(FEditorStyle::GetBrush("NoBorder"))
+		.BorderBackgroundColor(this, &SGraphPin_2DAxis::GetPinColor)
+		[
+			SNew(SLevelOfDetailBranchNode)
+			.UseLowDetailSlot(this, &SGraphPin_2DAxis::UseLowDetailPinNames)
+		.LowDetail()
+		[
+			//@TODO: Try creating a pin-colored line replacement that doesn't measure text / call delegates but still renders
+			PinWidgetRef
+		]
+	.HighDetail()
+		[
+			PinContent.ToSharedRef()
+		]
+		]
+	);
+
+	SetToolTip(SNew(SToolTip_Mock));
+
+	mouseIsCaptured = 0;
+}
+
+SGraphPin_2DAxis::~SGraphPin_2DAxis()
+{
+	StickZone.Reset();
+}
+
+FSlateColor SGraphPin_2DAxis::GetPinTextColor() const
+{
+	UEdGraphPin* GraphPin = GetPinObj();
+
+	FString lhs;
+	FString rhs;
+	GraphPin->PinName.ToString().Split(separator, &lhs, &rhs);
+
+	if (!UInputSettings::GetInputSettings()->DoesAxisExist(FName(lhs))) return FLinearColor::Red;
+
+	if (!UInputSettings::GetInputSettings()->DoesAxisExist(FName(rhs))) return FLinearColor::Red;
+
+	if (GraphPin)
+
+		// If there is no schema there is no owning node (or basically this is a deleted node)
+		if (UEdGraphNode* GraphNode = GraphPin ? GraphPin->GetOwningNodeUnchecked() : nullptr)
+		{
+			const bool bDisabled = (!GraphNode->IsNodeEnabled() || GraphNode->IsDisplayAsDisabledForced() || !IsEditingEnabled() || GraphNode->IsNodeUnrelated());
+			if (GraphPin->bOrphanedPin)
+			{
+				FLinearColor PinColor = FLinearColor::Red;
+				if (bDisabled)
+				{
+					PinColor.A = .25f;
+				}
+				return PinColor;
+			}
+			else if (bDisabled)
+			{
+				return FLinearColor(1.0f, 1.0f, 1.0f, 0.5f);
+			}
+			if (bUsePinColorForText)
+			{
+				return GetPinColor();
+			}
+		}
+
+	return FLinearColor::White;
+}
+
+TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
+{
+	//Create widget
+
+	const FLinearColor LabelClr = FLinearColor(1.f, 1.f, 1.f, 0.4f);
+
+	TSharedPtr<SBorder> StickCoordsBorder = nullptr;
+
+	TSharedPtr<SWidget> resultWidget = SNew(SHorizontalBox)
+
+		+ SHorizontalBox::Slot().AutoWidth().Padding(4).VAlign(VAlign_Center)
+		[
+			SNew(SGridPanel)
+			.FillColumn(0, 0).FillColumn(1, 1).FillColumn(2, 0)
+		.FillRow(0, 0).FillRow(1, 1).FillRow(2, 0)
+
+		+ SGridPanel::Slot(0, 0)
+		[
+			SNew(SBox).WidthOverride(32).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
+			[
+				SNew(STextBlock)
+				.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
+		.Text(LOCTEXT("LeftBottomPoint", "[-1, 1]"))
+		.ColorAndOpacity(LabelClr)
+			]
+		]
+
+	+ SGridPanel::Slot(0, 2)
+		[
+			SNew(SBox).WidthOverride(32).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
+			[
+				SNew(STextBlock)
+				.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
+		.Text(LOCTEXT("LeftBottomPoint", "[-1, -1]"))
+		.ColorAndOpacity(LabelClr)
+			]
+		]
+
+	+ SGridPanel::Slot(1, 1)
+		[
+			SNew(SBox).WidthOverride(64).HeightOverride(64).Clipping(EWidgetClipping::ClipToBounds)
+			[
+				SAssignNew(StickZone, SStickZone)
+				.OnValueChanged(this, &SGraphPin_2DAxis::OnStickZoneValueChanged)
+			]
+		]
+
+	+ SGridPanel::Slot(2, 0)
+		[
+			SNew(SBox).WidthOverride(32).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
+			[
+				SNew(STextBlock)
+				.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
+		.Text(LOCTEXT("RightTopPoint", "[1, 1]"))
+		.ColorAndOpacity(LabelClr)
+			]
+		]
+
+	+ SGridPanel::Slot(2, 2)
+		[
+			SNew(SBox).WidthOverride(32).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
+			[
+				SNew(STextBlock)
+				.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
+		.Text(LOCTEXT("RightTopPoint", "[1, -1]"))
+		.ColorAndOpacity(LabelClr)
+			]
+		]
+		]
+
+	+ SHorizontalBox::Slot().AutoWidth().Padding(4).VAlign(VAlign_Center)
+		[
+			SNew(SGridPanel).FillColumn(0, 1).FillColumn(1, 1).FillRow(0, 1).FillRow(1, 1)
+
+			+ SGridPanel::Slot(0, 0).ColumnSpan(2).Padding(2)
+		[
+			SNew(S1DAxisTextBox)
+			.VisibleText_X(this, &SGraphPin_2DAxis::GetCurrentValue_X)
+		.VisibleText_Y(this, &SGraphPin_2DAxis::GetCurrentValue_Y)
+		.IsEnabled(this, &SGraphPin_2DAxis::GetDefaultValueIsEditable)
+		.OnFloatCommitted_Box_X(this, &SGraphPin_2DAxis::OnChangedValueTextBox_X)
+		.OnFloatCommitted_Box_Y(this, &SGraphPin_2DAxis::OnChangedValueTextBox_Y)
+		]
+
+	+ SGridPanel::Slot(0, 1).VAlign(VAlign_Center).Padding(2)
+		[
+			SNew(STextBlock)
+			.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+		.Text(LOCTEXT("LeftParenthesis", "Range:"))
+		.ColorAndOpacity(LabelClr)
+		]
+
+	+ SGridPanel::Slot(1, 1).VAlign(VAlign_Center).Padding(2)
+		[
+			SNew(SNumericEntryBox<float>)
+			.Value(this, &SGraphPin_2DAxis::GetTypeInValue_Z)
+		.OnValueCommitted(this, &SGraphPin_2DAxis::OnChangedValueTextBox_Z)
+		.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+		.UndeterminedString(LOCTEXT("MultipleValues", "Multiple Values"))
+		.EditableTextBoxStyle(&FEditorStyle::GetWidgetStyle<FEditableTextBoxStyle>("Graph.VectorEditableTextBox"))
+		.BorderForegroundColor(FLinearColor::White)
+		.BorderBackgroundColor(FLinearColor::White)
+		]
+		];
+
+	return resultWidget.ToSharedRef();
+}
+
+FString SGraphPin_2DAxis::GetCurrentValue_X() const { return GetValue(TextBox_X); }
+
+FString SGraphPin_2DAxis::GetCurrentValue_Y() const { return GetValue(TextBox_Y); }
+
+TOptional<float> SGraphPin_2DAxis::GetTypeInValue_Z() const { return FCString::Atof(*(GetValue(TextBox_Z))); }
+
+FString SGraphPin_2DAxis::GetValue(ETextBoxIndex Index) const
+{
+	FString DefaultString = GraphPinObj->GetDefaultAsString();
+	TArray<FString> ResultString;
+
+	FVector Value;
+	Value.InitFromString(DefaultString);
+
+	if (Index == TextBox_X)
+	{
+		return FString::Printf(TEXT("%f"), Value.X);
+	}
+	else if (Index == TextBox_Y)
+	{
+		return FString::Printf(TEXT("%f"), Value.Y);
+	}
+	else
+	{
+		return FString::Printf(TEXT("%f"), Value.Z);
+	}
+}
+
+void SGraphPin_2DAxis::OnChangedValueTextBox_X(float NewValue, ETextCommit::Type CommitInfo)
+{
+	if (GraphPinObj->IsPendingKill())
+	{
+		return;
+	}
+
+	if (StickZone.IsValid()) StickZone->Position.X = NewValue;
+
+	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
+
+	TrySetDefaultValue(MakeVectorString(ValueStr, GetValue(TextBox_Y), GetValue(TextBox_Z)));
+}
+
+void SGraphPin_2DAxis::OnChangedValueTextBox_Y(float NewValue, ETextCommit::Type CommitInfo)
+{
+	if (GraphPinObj->IsPendingKill())
+	{
+		return;
+	}
+
+	if (StickZone.IsValid()) StickZone->Position.Y = NewValue;
+
+	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
+
+	TrySetDefaultValue(MakeVectorString(GetValue(TextBox_X), ValueStr, GetValue(TextBox_Z)));
+}
+
+void SGraphPin_2DAxis::OnChangedValueTextBox_Z(float NewValue, ETextCommit::Type CommitInfo)
+{
+	if (GraphPinObj->IsPendingKill())
+	{
+		return;
+	}
+
+	if (StickZone.IsValid())
+	{
+		StickZone->Scale.X = NewValue;
+		StickZone->Scale.Y = NewValue;
+	}
+
+	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
+
+	TrySetDefaultValue(MakeVectorString(GetValue(TextBox_X), GetValue(TextBox_Y), ValueStr));
+}
+
+FText SGraphPin_2DAxis::ToolTipText_Raw_Label() const
+{
+	UEdGraphPin* GraphPin = GetPinObj();
+
+	return UInputSettings::GetInputSettings()->DoesAxisExist(GraphPin->PinName)
+		? FText::GetEmpty()
+		: LOCTEXT("Label_TootTip_Error", "Cant find corresponding Axis name in Input Settings!");
+}
+
+FText SGraphPin_2DAxis::ToolTipText_Raw_RemovePin() const { return LOCTEXT("RemovePin_Tooltip", "Click to remove Axis pin"); }
+
+FReply SGraphPin_2DAxis::OnClicked_Raw_RemovePin() const
+{
+	if (UEdGraphPin* FromPin = GetPinObj())
+	{
+		UEdGraphNode* FromNode = FromPin->GetOwningNode();
+
+		UEdGraph* ParentGraph = FromNode->GetGraph();
+
+		if (FromPin->HasAnyConnections())
+		{
+			const FScopedTransaction Transaction(LOCTEXT("K2_DeleteNode", "Delete Node"));
+
+			ParentGraph->Modify();
+
+			UEdGraphNode* linkedGraphNode = FromPin->LinkedTo[0]->GetOwningNode();
+
+			linkedGraphNode->Modify();
+			linkedGraphNode->DestroyNode();
+		}
+
+		{
+			const FScopedTransaction Transaction(LOCTEXT("K2_DeletePin", "Delete Pin"));
+
+			FromNode->RemovePin(FromPin);
+
+			FromNode->Modify();
+
+			if (UInputSequenceGraphNode_Dynamic* dynNode = Cast<UInputSequenceGraphNode_Dynamic>(FromNode)) dynNode->OnUpdateGraphNode.ExecuteIfBound();
+		}
+	}
+
+	return FReply::Handled();
+}
+
+void SGraphPin_2DAxis::EvalAndSetValueFromMouseEvent(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	FVector2D localPosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
+
+	FVector2D localSize = MyGeometry.GetLocalSize();
+
+	FVector2D newValue = (2 * localPosition - localSize) / localSize;
+
+	newValue.X = FMath::RoundToFloat(newValue.X * 100) / 100;
+
+	newValue.Y = -FMath::RoundToFloat(newValue.Y * 100) / 100;
+
+	const FString ValueXStr = FString::Printf(TEXT("%f"), newValue.X);
+
+	const FString ValueYStr = FString::Printf(TEXT("%f"), newValue.Y);
+
+	TrySetDefaultValue(MakeVectorString(ValueXStr, ValueYStr, GetValue(TextBox_Z)));
+}
+
+void SGraphPin_2DAxis::TrySetDefaultValue(const FString& VectorString)
+{
+	if (GraphPinObj->GetDefaultAsString() != VectorString)
+	{
+		const FScopedTransaction Transaction(LOCTEXT("ChangeVectorPinValue", "Change Vector Pin Value"));
+		GraphPinObj->Modify();
+
+		//Set new default value
+		GraphPinObj->GetSchema()->TrySetDefaultValue(*GraphPinObj, VectorString);
+
+
+	}
+}
+
+void SGraphPin_2DAxis::OnStickZoneValueChanged(float NewValue, ETextBoxIndex Index)
+{
+	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
+
+	if (Index == ETextBoxIndex::TextBox_X)
+	{
+		TrySetDefaultValue(MakeVectorString(ValueStr, GetValue(TextBox_Y), GetValue(TextBox_Z)));
+	}
+	else if (Index == ETextBoxIndex::TextBox_Y)
+	{
+		TrySetDefaultValue(MakeVectorString(GetValue(TextBox_X), ValueStr, GetValue(TextBox_Z)));
+	}
+	else
+	{
+		TrySetDefaultValue(MakeVectorString(GetValue(TextBox_X), GetValue(TextBox_Y), ValueStr));
+	}
+}
+
+#undef LOCTEXT_NAMESPACE
+#pragma endregion
+
+
+
 #pragma region SGraphPin_Add
 #define LOCTEXT_NAMESPACE "SGraphPin_Add"
 
@@ -1043,27 +1947,6 @@ TSharedRef<SWidget> SGraphPin_Add::OnGetAddButtonMenuContent()
 
 #pragma region SGraphPin_Action
 #define LOCTEXT_NAMESPACE "SGraphPin_Action"
-
-class SToolTip_Mock : public SLeafWidget, public IToolTip
-{
-public:
-
-	SLATE_BEGIN_ARGS(SToolTip_Mock) {}
-	SLATE_END_ARGS()
-
-		void Construct(const FArguments& InArgs) {}
-
-	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override { return LayerId; }
-	virtual FVector2D ComputeDesiredSize(float) const override { return FVector2D::ZeroVector; }
-
-	virtual TSharedRef<class SWidget> AsWidget() { return SNullWidget::NullWidget; }
-	virtual TSharedRef<SWidget> GetContentWidget() { return SNullWidget::NullWidget; }
-	virtual void SetContentWidget(const TSharedRef<SWidget>& InContentWidget) override {}
-	virtual bool IsEmpty() const override { return false; }
-	virtual bool IsInteractive() const { return false; }
-	virtual void OnOpening() override {}
-	virtual void OnClosed() override {}
-};
 
 void SGraphPin_Action::Construct(const FArguments& Args, UEdGraphPin* InPin)
 {
@@ -1429,114 +2312,6 @@ FReply SGraphPin_Action::OnClicked_Raw_TogglePin() const
 
 
 
-#pragma region S1DAxisTextBox
-#define LOCTEXT_NAMESPACE "S1DAxisTextBox"
-
-//Class implementation to create 2 editable text boxes to represent vector2D graph pin
-class S1DAxisTextBox : public SCompoundWidget
-{
-public:
-
-	SLATE_BEGIN_ARGS(S1DAxisTextBox) {}
-	SLATE_ATTRIBUTE(FString, VisibleText_X)
-	SLATE_ATTRIBUTE(FString, VisibleText_Y)
-	SLATE_EVENT(FOnFloatValueCommitted, OnFloatCommitted_Box_X)
-	SLATE_EVENT(FOnFloatValueCommitted, OnFloatCommitted_Box_Y)
-	SLATE_END_ARGS()
-
-		//Construct editable text boxes with the appropriate getter & setter functions along with tool tip text
-	void Construct(const FArguments& InArgs)
-	{
-		VisibleText_X = InArgs._VisibleText_X;
-		VisibleText_Y = InArgs._VisibleText_Y;
-		const FLinearColor LabelClr = FLinearColor(1.f, 1.f, 1.f, 0.4f);
-
-		this->ChildSlot
-			[
-				SNew(SVerticalBox)
-					+ SVerticalBox::Slot()
-					.AutoHeight()
-					.Padding(0)
-					[
-						SNew(SHorizontalBox)
-
-							+ SHorizontalBox::Slot()
-							.AutoWidth().Padding(2).HAlign(HAlign_Fill)
-							[
-								SNew(STextBlock)
-									.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
-									.Text(LOCTEXT("LeftParenthesis", "("))
-									.ColorAndOpacity(LabelClr)
-							]
-
-							+ SHorizontalBox::Slot()
-							.AutoWidth().Padding(2).HAlign(HAlign_Fill)
-							[
-								//Create Text box 0 
-								SNew(SNumericEntryBox<float>)
-									.Value(this, &S1DAxisTextBox::GetTypeInValue_X)
-									.OnValueCommitted(InArgs._OnFloatCommitted_Box_X)
-									.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
-									.UndeterminedString(LOCTEXT("MultipleValues", "Multiple Values"))
-									.ToolTipText(LOCTEXT("VectorNodeXAxisValueLabel_ToolTip", "From value"))
-									.EditableTextBoxStyle(&FEditorStyle::GetWidgetStyle<FEditableTextBoxStyle>("Graph.VectorEditableTextBox"))
-									.BorderForegroundColor(FLinearColor::White)
-									.BorderBackgroundColor(FLinearColor::White)
-							]
-
-							+ SHorizontalBox::Slot()
-							.AutoWidth().Padding(2).HAlign(HAlign_Fill)
-							[
-								SNew(STextBlock)
-									.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
-									.Text(LOCTEXT("Mediator", ","))
-									.ColorAndOpacity(LabelClr)
-							]
-
-							+ SHorizontalBox::Slot()
-							.AutoWidth().Padding(2).HAlign(HAlign_Fill)
-							[
-								//Create Text box 1
-								SNew(SNumericEntryBox<float>)
-									.Value(this, &S1DAxisTextBox::GetTypeInValue_Y)
-									.OnValueCommitted(InArgs._OnFloatCommitted_Box_Y)
-									.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
-									.UndeterminedString(LOCTEXT("MultipleValues", "Multiple Values"))
-									.ToolTipText(LOCTEXT("VectorNodeYAxisValueLabel_ToolTip", "To value"))
-									.EditableTextBoxStyle(&FEditorStyle::GetWidgetStyle<FEditableTextBoxStyle>("Graph.VectorEditableTextBox"))
-									.BorderForegroundColor(FLinearColor::White)
-									.BorderBackgroundColor(FLinearColor::White)
-							]
-
-							+ SHorizontalBox::Slot()
-							.AutoWidth().Padding(2).HAlign(HAlign_Fill)
-							[
-								SNew(STextBlock)
-									.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
-									.Text(LOCTEXT("RightParenthesis", ")"))
-									.ColorAndOpacity(LabelClr)
-							]
-					]
-			];
-	}
-
-private:
-
-	//Get value for X text box
-	TOptional<float> GetTypeInValue_X() const { return FCString::Atof(*(VisibleText_X.Get())); }
-
-	//Get value for Y text box
-	TOptional<float> GetTypeInValue_Y() const { return FCString::Atof(*(VisibleText_Y.Get())); }
-
-	TAttribute<FString> VisibleText_X;
-	TAttribute<FString> VisibleText_Y;
-};
-
-#undef LOCTEXT_NAMESPACE
-#pragma endregion
-
-
-
 #pragma region SGraphPin_Axis
 #define LOCTEXT_NAMESPACE "SGraphPin_Axis"
 
@@ -1738,11 +2513,6 @@ FString SGraphPin_Axis::GetValue(ETextBoxIndex Index) const
 	{
 		return FString::Printf(TEXT("%f"), Value.Y);
 	}
-}
-
-FString MakeVector2DString(const FString& X, const FString& Y)
-{
-	return FString(TEXT("(X=")) + X + FString(TEXT(",Y=")) + Y + FString(TEXT(")"));
 }
 
 void SGraphPin_Axis::OnChangedValueTextBox_X(float NewValue, ETextCommit::Type CommitInfo)
