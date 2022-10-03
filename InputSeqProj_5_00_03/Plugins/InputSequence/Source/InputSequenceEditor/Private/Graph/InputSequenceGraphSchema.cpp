@@ -1151,6 +1151,149 @@ FString MakeVectorString(const FString& X, const FString& Y, const FString& Z)
 
 
 
+#pragma region SToolTip_Mock
+#define LOCTEXT_NAMESPACE "SToolTip_Mock"
+
+class SStickZone : public SLeafWidget
+{
+public:
+
+	DECLARE_DELEGATE_TwoParams(FOnValueChanged, float, SGraphPin_2DAxis::ETextBoxIndex);
+
+	SLATE_BEGIN_ARGS(SStickZone) {}
+	SLATE_EVENT(FOnValueChanged, OnValueChanged)
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs)
+	{
+		OnValueChanged = InArgs._OnValueChanged;
+	}
+
+	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override
+	{
+		FVector2D localSize = AllottedGeometry.GetLocalSize();
+
+		TArray<FVector2D> LinePoints;
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(localSize.X / 2, 0.f));
+		LinePoints.Add(FVector2D(localSize.X / 2, localSize.Y));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(0, localSize.Y / 2));
+		LinePoints.Add(FVector2D(localSize.X, localSize.Y / 2));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		++LayerId;
+		FSlateDrawElement::MakeBox(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(Position * localSize - Scale * localSize / 2, Scale * localSize),
+			FEditorStyle::GetBrush("GenericViewButton"),
+			ESlateDrawEffect::None
+		);
+
+		return LayerId;
+	}
+
+	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
+	{
+		if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+		{
+			FVector2D localSize = MyGeometry.GetLocalSize();
+			FVector2D localPosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
+
+			Position.X = localSize.X > 0 ? FMath::RoundToFloat(100 * localPosition.X / localSize.X) / 100 : 0;
+			Position.Y = localSize.Y > 0 ? FMath::RoundToFloat(100 * localPosition.Y / localSize.Y) / 100 : 0;
+
+			OnValueChanged.ExecuteIfBound(Position.X, SGraphPin_2DAxis::ETextBoxIndex::TextBox_X);
+			OnValueChanged.ExecuteIfBound(Position.Y, SGraphPin_2DAxis::ETextBoxIndex::TextBox_Y);
+
+			return FReply::Handled().CaptureMouse(SharedThis(this));
+		}
+		else
+		{
+			return FReply::Unhandled();
+		}
+	}
+
+	virtual FReply OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
+	{
+		if ((MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton) && this->HasMouseCapture())
+		{
+			return FReply::Handled().ReleaseMouseCapture();
+		}
+		else
+		{
+			return FReply::Unhandled();
+		}
+	}
+
+	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
+	{
+		if (this->HasMouseCapture())
+		{
+			if (IsHovered())
+			{
+				FVector2D localSize = MyGeometry.GetLocalSize();
+				FVector2D localPosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
+
+				Position.X = localSize.X > 0 ? FMath::RoundToFloat(100 * localPosition.X / localSize.X) / 100 : 0;
+				Position.Y = localSize.Y > 0 ? FMath::RoundToFloat(100 * localPosition.Y / localSize.Y) / 100 : 0;
+
+				OnValueChanged.ExecuteIfBound(Position.X, SGraphPin_2DAxis::ETextBoxIndex::TextBox_X);
+				OnValueChanged.ExecuteIfBound(Position.Y, SGraphPin_2DAxis::ETextBoxIndex::TextBox_Y);
+			}
+
+			return FReply::Handled();
+		}
+
+		return FReply::Unhandled();
+	}
+
+	virtual FReply OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
+	{		
+		Scale.X = FMath::Max(0, Scale.X + (MouseEvent.GetWheelDelta() > 0 ? 0.1 : -0.1));
+		Scale.Y = Scale.X;
+
+		OnValueChanged.ExecuteIfBound(Scale.X, SGraphPin_2DAxis::TextBox_Z);
+
+		return FReply::Handled();
+	}
+
+	virtual FVector2D ComputeDesiredSize(float) const override { return FVector2D::ZeroVector; }
+
+	FVector2D Position;
+	
+	FVector2D Scale;
+
+	FOnValueChanged OnValueChanged;
+};
+
+#undef LOCTEXT_NAMESPACE
+#pragma endregion
+
+
+
 #pragma region SGraphPin_2DAxis
 #define LOCTEXT_NAMESPACE "SGraphPin_2DAxis"
 
@@ -1289,6 +1432,11 @@ void SGraphPin_2DAxis::Construct(const FArguments& Args, UEdGraphPin* InPin)
 	mouseIsCaptured = 0;
 }
 
+SGraphPin_2DAxis::~SGraphPin_2DAxis()
+{
+	StickZone.Reset();
+}
+
 FSlateColor SGraphPin_2DAxis::GetPinTextColor() const
 {
 	UEdGraphPin* GraphPin = GetPinObj();
@@ -1341,9 +1489,69 @@ TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
 
 		+ SHorizontalBox::Slot().AutoWidth().Padding(4).VAlign(VAlign_Center)
 		[
+			SNew(SGridPanel)
+			.FillColumn(0,0).FillColumn(1, 1).FillColumn(2, 0)
+			.FillRow(0, 0).FillRow(1, 1).FillRow(2, 0)
+
+			+ SGridPanel::Slot(0, 0)
+			[
+				SNew(SBox).WidthOverride(32).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
+				[
+					SNew(STextBlock)
+					.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
+					.Text(LOCTEXT("LeftBottomPoint", "[-1, 1]"))
+					.ColorAndOpacity(LabelClr)
+				]
+			]
+
+			+ SGridPanel::Slot(0, 2)
+			[
+				SNew(SBox).WidthOverride(32).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
+				[
+					SNew(STextBlock)
+					.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
+					.Text(LOCTEXT("LeftBottomPoint", "[-1, -1]"))
+					.ColorAndOpacity(LabelClr)
+				]
+			]
+			
+			+ SGridPanel::Slot(1,1)
+			[
+				SNew(SBox).WidthOverride(64).HeightOverride(64)
+				[
+					SAssignNew(StickZone, SStickZone)
+					.OnValueChanged(this, &SGraphPin_2DAxis::OnStickZoneValueChanged)
+				]
+			]
+
+			+ SGridPanel::Slot(2,0)
+			[
+				SNew(SBox).WidthOverride(32).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
+				[
+					SNew(STextBlock)
+					.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
+					.Text(LOCTEXT("RightTopPoint", "[1, 1]"))
+					.ColorAndOpacity(LabelClr)
+				]
+			]
+
+			+ SGridPanel::Slot(2, 2)
+			[
+				SNew(SBox).WidthOverride(32).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
+				[
+					SNew(STextBlock)
+					.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
+					.Text(LOCTEXT("RightTopPoint", "[1, -1]"))
+					.ColorAndOpacity(LabelClr)
+				]
+			]
+		]
+
+		+ SHorizontalBox::Slot().AutoWidth().Padding(4).VAlign(VAlign_Center)
+		[
 			SNew(SGridPanel).FillColumn(0, 1).FillColumn(1, 1).FillRow(0, 1).FillRow(1, 1)
 
-			+ SGridPanel::Slot(0,0).ColumnSpan(2).Padding(2)
+			+ SGridPanel::Slot(0, 0).ColumnSpan(2).Padding(2)
 			[
 				SNew(S1DAxisTextBox)
 				.VisibleText_X(this, &SGraphPin_2DAxis::GetCurrentValue_X)
@@ -1364,7 +1572,7 @@ TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
 			+ SGridPanel::Slot(1, 1).VAlign(VAlign_Center).Padding(2)
 			[
 				SNew(SNumericEntryBox<float>)
-				.Value(this, &SGraphPin_2DAxis::GetTypeInValue_Y)
+				.Value(this, &SGraphPin_2DAxis::GetTypeInValue_Z)
 				.OnValueCommitted(this, &SGraphPin_2DAxis::OnChangedValueTextBox_Z)
 				.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
 				.UndeterminedString(LOCTEXT("MultipleValues", "Multiple Values"))
@@ -1372,45 +1580,7 @@ TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
 				.BorderForegroundColor(FLinearColor::White)
 				.BorderBackgroundColor(FLinearColor::White)
 			]
-		]
-
-		+ SHorizontalBox::Slot().AutoWidth().Padding(4).VAlign(VAlign_Center)
-		[
-			SNew(SGridPanel)
-			.FillColumn(0,0).FillColumn(1, 1).FillColumn(2, 0)
-			.FillRow(0, 0).FillRow(1, 1).FillRow(2, 0)
-
-			+ SGridPanel::Slot(0, 2)
-			[
-				SNew(STextBlock)
-				.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
-				.Text(LOCTEXT("LeftBottomPoint", "[-1, -1]"))
-				.ColorAndOpacity(LabelClr)
-			]
-			
-			+ SGridPanel::Slot(1,1)
-			[
-				SNew(SBox).WidthOverride(64).HeightOverride(64)
-				[
-					SAssignNew(StickCoordsBorder, SBorder)
-					.OnMouseButtonUp(this, &SGraphPin_2DAxis::HandleOnMouseButtonUp)
-					.OnMouseMove(this, &SGraphPin_2DAxis::HandleOnMouseMove)
-				]
-			]
-
-			+ SGridPanel::Slot(2,0)
-			[
-				SNew(STextBlock)
-				.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
-				.Text(LOCTEXT("RightTopPoint", "[1, 1]"))
-				.ColorAndOpacity(LabelClr)
-			]
 		];
-
-		if (StickCoordsBorder.IsValid())
-		{
-			StickCoordsBorder->SetOnMouseButtonDown(FPointerEventHandler::CreateRaw(this, &SGraphPin_2DAxis::HandleOnMouseButtonDown, StickCoordsBorder));
-		}
 
 		return resultWidget.ToSharedRef();
 }
@@ -1419,7 +1589,7 @@ FString SGraphPin_2DAxis::GetCurrentValue_X() const { return GetValue(TextBox_X)
 
 FString SGraphPin_2DAxis::GetCurrentValue_Y() const { return GetValue(TextBox_Y); }
 
-TOptional<float> SGraphPin_2DAxis::GetTypeInValue_Y() const { return FCString::Atof(*(GetValue(TextBox_Z))); }
+TOptional<float> SGraphPin_2DAxis::GetTypeInValue_Z() const { return FCString::Atof(*(GetValue(TextBox_Z))); }
 
 FString SGraphPin_2DAxis::GetValue(ETextBoxIndex Index) const
 {
@@ -1450,6 +1620,8 @@ void SGraphPin_2DAxis::OnChangedValueTextBox_X(float NewValue, ETextCommit::Type
 		return;
 	}
 
+	if (StickZone.IsValid()) StickZone->Position.X = NewValue;
+
 	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
 
 	TrySetDefaultValue(MakeVectorString(ValueStr, GetValue(TextBox_Y), GetValue(TextBox_Z)));
@@ -1462,6 +1634,8 @@ void SGraphPin_2DAxis::OnChangedValueTextBox_Y(float NewValue, ETextCommit::Type
 		return;
 	}
 
+	if (StickZone.IsValid()) StickZone->Position.Y = NewValue;
+
 	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
 
 	TrySetDefaultValue(MakeVectorString(GetValue(TextBox_X), ValueStr, GetValue(TextBox_Z)));
@@ -1472,6 +1646,12 @@ void SGraphPin_2DAxis::OnChangedValueTextBox_Z(float NewValue, ETextCommit::Type
 	if (GraphPinObj->IsPendingKill())
 	{
 		return;
+	}
+
+	if (StickZone.IsValid())
+	{
+		StickZone->Scale.X = NewValue;
+		StickZone->Scale.Y = NewValue;
 	}
 
 	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
@@ -1524,53 +1704,23 @@ FReply SGraphPin_2DAxis::OnClicked_Raw_RemovePin() const
 	return FReply::Handled();
 }
 
-FReply SGraphPin_2DAxis::HandleOnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent, TSharedPtr<SBorder> capturingWidget)
+void SGraphPin_2DAxis::EvalAndSetValueFromMouseEvent(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	FReply result = FReply::Handled();
+	FVector2D localPosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 
-	if (capturingWidget.IsValid())
-	{
-		result.CaptureMouse(capturingWidget.ToSharedRef());
-		mouseIsCaptured = 1;
-	}
+	FVector2D localSize = MyGeometry.GetLocalSize();
 
-	return result;
-}
+	FVector2D newValue = (2 * localPosition - localSize) / localSize;
 
-FReply SGraphPin_2DAxis::HandleOnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
-{
-	mouseIsCaptured = 0;
-	return FReply::Handled().ReleaseMouseCapture();
-}
+	newValue.X = FMath::RoundToFloat(newValue.X * 100) / 100;
 
-FReply SGraphPin_2DAxis::HandleOnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
-{
-	if (mouseIsCaptured)
-	{
-		FVector2D localPosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
-		FVector2D localSize = MyGeometry.GetLocalSize();
+	newValue.Y = -FMath::RoundToFloat(newValue.Y * 100) / 100;
 
-		if (GraphPinObj->IsPendingKill())
-		{
-			return FReply::Handled();
-		}
+	const FString ValueXStr = FString::Printf(TEXT("%f"), newValue.X);
 
-		FVector2D newValue = (2 * localPosition - localSize) / localSize;
+	const FString ValueYStr = FString::Printf(TEXT("%f"), newValue.Y);
 
-		newValue.X = FMath::RoundToFloat(newValue.X * 100) / 100;
-
-		newValue.Y = -FMath::RoundToFloat(newValue.Y * 100) / 100;
-
-		const FString ValueXStr = FString::Printf(TEXT("%f"), newValue.X);
-
-		const FString ValueYStr = FString::Printf(TEXT("%f"), newValue.Y);
-
-		TrySetDefaultValue(MakeVectorString(ValueXStr, ValueYStr, GetValue(TextBox_Z)));
-
-		return FReply::Handled();
-	}
-
-	return SGraphPin::OnMouseMove(MyGeometry, MouseEvent);
+	TrySetDefaultValue(MakeVectorString(ValueXStr, ValueYStr, GetValue(TextBox_Z)));
 }
 
 void SGraphPin_2DAxis::TrySetDefaultValue(const FString& VectorString)
@@ -1582,6 +1732,26 @@ void SGraphPin_2DAxis::TrySetDefaultValue(const FString& VectorString)
 
 		//Set new default value
 		GraphPinObj->GetSchema()->TrySetDefaultValue(*GraphPinObj, VectorString);
+
+
+	}
+}
+
+void SGraphPin_2DAxis::OnStickZoneValueChanged(float NewValue, ETextBoxIndex Index)
+{
+	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
+
+	if (Index == ETextBoxIndex::TextBox_X)
+	{
+		TrySetDefaultValue(MakeVectorString(ValueStr, GetValue(TextBox_Y), GetValue(TextBox_Z)));
+	}
+	else if (Index == ETextBoxIndex::TextBox_Y)
+	{
+		TrySetDefaultValue(MakeVectorString(GetValue(TextBox_X), ValueStr, GetValue(TextBox_Z)));
+	}
+	else
+	{
+		TrySetDefaultValue(MakeVectorString(GetValue(TextBox_X), GetValue(TextBox_Y), ValueStr));
 	}
 }
 

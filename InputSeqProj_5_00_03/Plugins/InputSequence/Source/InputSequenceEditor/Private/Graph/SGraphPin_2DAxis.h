@@ -5,21 +5,11 @@
 #include "SGraphPin.h"
 
 class UEdGraphPin;
+class SStickZone;
 
 class SGraphPin_2DAxis : public SGraphPin
 {
 public:
-	
-	SLATE_BEGIN_ARGS(SGraphPin_2DAxis) {}
-	SLATE_END_ARGS()
-
-	void Construct(const FArguments& InArgs, UEdGraphPin* InPin);
-
-	virtual FSlateColor GetPinTextColor() const override;
-
-protected:
-
-	virtual TSharedRef<SWidget> GetDefaultValueWidget() override;
 
 	enum ETextBoxIndex
 	{
@@ -28,11 +18,24 @@ protected:
 		TextBox_Z
 	};
 
+	SLATE_BEGIN_ARGS(SGraphPin_2DAxis) {}
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs, UEdGraphPin* InPin);
+
+	virtual ~SGraphPin_2DAxis();
+
+	virtual FSlateColor GetPinTextColor() const override;
+
+protected:
+
+	virtual TSharedRef<SWidget> GetDefaultValueWidget() override;
+
 	FString GetCurrentValue_X() const;
 
 	FString GetCurrentValue_Y() const;
 
-	TOptional<float> GetTypeInValue_Y() const;
+	TOptional<float> GetTypeInValue_Z() const;
 
 	FString GetValue(ETextBoxIndex Index) const;
 
@@ -48,13 +51,13 @@ protected:
 
 	FReply OnClicked_Raw_RemovePin() const;
 
-	FReply HandleOnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent, TSharedPtr<SBorder> capturingWidget);
-
-	FReply HandleOnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
-
-	FReply HandleOnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
+	void EvalAndSetValueFromMouseEvent(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
 
 	void TrySetDefaultValue(const FString& VectorString);
+
+	void OnStickZoneValueChanged(float NewValue, ETextBoxIndex Index);
+
+	TSharedPtr<SStickZone> StickZone;
 
 	uint8 mouseIsCaptured : 1;
 };
