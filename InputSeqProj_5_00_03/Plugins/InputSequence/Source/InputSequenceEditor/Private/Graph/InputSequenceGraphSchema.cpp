@@ -1167,8 +1167,8 @@ FString MakeVectorString(const FString& X, const FString& Y, const FString& Z)
 
 
 
-#pragma region SToolTip_Mock
-#define LOCTEXT_NAMESPACE "SToolTip_Mock"
+#pragma region SStickZone
+#define LOCTEXT_NAMESPACE "SStickZone"
 
 class SStickZone : public SLeafWidget
 {
