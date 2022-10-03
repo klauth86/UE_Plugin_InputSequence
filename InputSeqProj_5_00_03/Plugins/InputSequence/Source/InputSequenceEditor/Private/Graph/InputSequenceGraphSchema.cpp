@@ -40,6 +40,8 @@
 #include "UObject/ObjectSaveContext.h"
 #include "SGraphPanel.h"
 
+const FString separator = " ^ ";
+
 template<class T>
 TSharedPtr<T> AddNewActionAs(FGraphContextMenuBuilder& ContextMenuBuilder, const FText& Category, const FText& MenuDesc, const FText& Tooltip, const int32 Grouping = 0)
 {
@@ -316,6 +318,20 @@ void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
 							Value.InitFromString(DefaultString);
 
 							state.InputActions.Add(pin->PinName, FInputActionState({}, Value.X, Value.Y));
+						}
+						else if (pin->PinType.PinCategory == UInputSequenceGraphSchema::PC_2DAxis)
+						{
+							FString DefaultString = pin->GetDefaultAsString();
+
+							FVector Value;
+							Value.InitFromString(DefaultString);
+
+							FString lhs;
+							FString rhs;
+							if (pin->PinName.ToString().Split(separator, &lhs, &rhs))
+							{
+								state.InputActions.Add(pin->PinName, FInputActionState({}, Value.X, Value.Y, Value.Z, lhs, rhs));
+							}
 						}
 					}
 				}
@@ -675,7 +691,7 @@ protected:
 				{
 					if (inputNameA != inputNameB)
 					{
-						FName pairedName = FName(inputNameA.ToString().Append(" ^ ").Append(inputNameB.ToString()));
+						FName pairedName = FName(inputNameA.ToString().Append(separator).Append(inputNameB.ToString()));
 
 						if (Node && Node->FindPin(pairedName))
 						{
@@ -1175,6 +1191,18 @@ public:
 
 		TArray<FVector2D> LinePoints;
 
+		FLinearColor color = FLinearColor::White;
+		color.A = 0.25;
+
+		++LayerId;
+		FSlateDrawElement::MakeBox(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(Position * localSize - Scale * localSize / 2, Scale * localSize),
+			FEditorStyle::GetBrush("Icons.FilledCircle"), ESlateDrawEffect::None,
+			color
+		);
+
 		++LayerId;
 		LinePoints.Empty();
 		LinePoints.Add(FVector2D(localSize.X / 2, 0.f));
@@ -1204,12 +1232,59 @@ public:
 		);
 
 		++LayerId;
-		FSlateDrawElement::MakeBox(
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(0, 0));
+		LinePoints.Add(FVector2D(localSize.X, 0));
+
+		FSlateDrawElement::MakeLines(
 			OutDrawElements,
 			LayerId,
-			AllottedGeometry.ToPaintGeometry(Position * localSize - Scale * localSize / 2, Scale * localSize),
-			FEditorStyle::GetBrush("GenericViewButton"),
-			ESlateDrawEffect::None
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(0, localSize.Y));
+		LinePoints.Add(FVector2D(localSize.X, localSize.Y));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(0, 0));
+		LinePoints.Add(FVector2D(0, localSize.Y));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(localSize.X, 0));
+		LinePoints.Add(FVector2D(localSize.X, localSize.Y));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
 		);
 
 		return LayerId;
@@ -1443,7 +1518,7 @@ FSlateColor SGraphPin_2DAxis::GetPinTextColor() const
 
 	FString lhs;
 	FString rhs;
-	GraphPin->PinName.ToString().Split(" ^ ", &lhs, &rhs);
+	GraphPin->PinName.ToString().Split(separator, &lhs, &rhs);
 
 	if (!UInputSettings::GetInputSettings()->DoesAxisExist(FName(lhs))) return FLinearColor::Red;
 
@@ -1517,7 +1592,7 @@ TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
 			
 			+ SGridPanel::Slot(1,1)
 			[
-				SNew(SBox).WidthOverride(64).HeightOverride(64)
+				SNew(SBox).WidthOverride(64).HeightOverride(64).Clipping(EWidgetClipping::ClipToBounds)
 				[
 					SAssignNew(StickZone, SStickZone)
 					.OnValueChanged(this, &SGraphPin_2DAxis::OnStickZoneValueChanged)

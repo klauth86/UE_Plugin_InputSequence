@@ -16,7 +16,8 @@ struct INPUTSEQUENCE_API FInputActionState
 
 public:
 
-	FInputActionState(TArray<EInputEvent> inputEvents = {}, float from = 0, float to = 0) : InputEvents(inputEvents), Index(INDEX_NONE), From(from), To(to) {}
+	FInputActionState(TArray<EInputEvent> inputEvents = {}, float x = 0, float y = 0, float z = INDEX_NONE, const FString subNameAString = "", const FString subNameBString = "")
+		: InputEvents(inputEvents), Index(INDEX_NONE), X(x), Y(y), Z(z), SubNameA(subNameAString.IsEmpty() ? NAME_None : FName(subNameAString)), SubNameB(subNameBString.IsEmpty() ? NAME_None : FName(subNameBString)) {}
 
 	bool IsOpen_Action() const { return !InputEvents.IsValidIndex(Index + 1); }
 
@@ -30,13 +31,26 @@ public:
 
 	bool ConsumeInput_Axis(float axisValue)
 	{
-		if (From <= axisValue && axisValue <= To) { Index++; return true; }
+		if (X <= axisValue && axisValue <= Y) { Index++; return true; }
 		return false;
 	}
 
-	bool IsOpen(bool isAxis) const { return isAxis ? IsOpen_Axis() : IsOpen_Action(); }
+	bool Is2DAxis() const { return Z >= 0; }
+
+	bool ConsumeInput_2DAxis(float axisValueA, float axisValueB)
+	{
+		float dX = axisValueA - X;
+		float dY = axisValueB - Y;
+		if (dX * dX + dY * dY <= Z * Z) { Index++; return true; }
+		
+		return false;
+	}
 
 	void Reset() { Index = INDEX_NONE; }
+
+	const FName& GetSubNameA() const { return SubNameA; }
+
+	const FName& GetSubNameB() const { return SubNameB; }
 
 protected:
 
@@ -46,10 +60,19 @@ protected:
 	int32 Index;
 
 	UPROPERTY()
-		float From;
+		float X;
 
 	UPROPERTY()
-		float To;
+		float Y;
+
+	UPROPERTY()
+		float Z;
+
+	UPROPERTY()
+		FName SubNameA;
+
+	UPROPERTY()
+		FName SubNameB;
 };
 
 USTRUCT()
@@ -100,7 +123,7 @@ public:
 			const FName& actionName = inputActionEntry.Key;
 			const FInputActionState& inputActionState = inputActionEntry.Value;
 
-			if (!inputActionState.IsOpen(IsAxisNode)) return false;
+			if (IsAxisNode && !inputActionState.IsOpen_Axis() || !inputActionState.IsOpen_Action()) return false;
 		}
 
 		return true;
@@ -115,14 +138,40 @@ public:
 			const FName& actionName = inputActionEntry.Key;
 			FInputActionState& inputActionState = inputActionEntry.Value;
 
-			if (IsAxisNode && inputAxisEvents.Contains(actionName) && !inputActionState.IsOpen(IsAxisNode) ||
-				!IsAxisNode && inputActionEvents.Contains(actionName) && !inputActionState.IsOpen(IsAxisNode))
+			if (IsAxisNode)
 			{
-				if (IsAxisNode && inputActionState.ConsumeInput_Axis(inputAxisEvents[actionName]) ||
-					!IsAxisNode && inputActionState.ConsumeInput_Action(inputActionEvents[actionName]))
+				if (inputActionState.Is2DAxis())
 				{
-					AccumulatedTime = 0;
-					result = true;
+					if (inputAxisEvents.Contains(inputActionState.GetSubNameA()) && inputAxisEvents.Contains(inputActionState.GetSubNameB()))
+					{
+						if (inputActionState.ConsumeInput_2DAxis(inputAxisEvents[inputActionState.GetSubNameA()], inputAxisEvents[inputActionState.GetSubNameB()]))
+						{
+							AccumulatedTime = 0;
+							result = true;
+						}
+					}
+				}
+				else
+				{
+					if (inputAxisEvents.Contains(actionName) && !inputActionState.IsOpen_Axis())
+					{
+						if (inputActionState.ConsumeInput_Axis(inputAxisEvents[actionName]))
+						{
+							AccumulatedTime = 0;
+							result = true;
+						}
+					}
+				}
+			}
+			else
+			{
+				if (inputActionEvents.Contains(actionName) && !inputActionState.IsOpen_Action())
+				{
+					if (inputActionState.ConsumeInput_Action(inputActionEvents[actionName]))
+					{
+						AccumulatedTime = 0;
+						result = true;
+					}
 				}
 			}
 		}
