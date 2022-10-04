@@ -1503,7 +1503,19 @@ void SGraphPin_2DAxis::Construct(const FArguments& Args, UEdGraphPin* InPin)
 
 	SetToolTip(SNew(SToolTip_Mock));
 
-	mouseIsCaptured = 0;
+	if (StickZone.IsValid())
+	{
+		FString DefaultString = GraphPinObj->GetDefaultAsString();
+
+		FVector Value;
+		Value.InitFromString(DefaultString);
+
+		StickZone->Position.X = Value.X;
+		StickZone->Position.Y = Value.Y;
+
+		StickZone->Scale.X = Value.Z;
+		StickZone->Scale.Y = Value.Z;
+	}
 }
 
 SGraphPin_2DAxis::~SGraphPin_2DAxis()
@@ -1668,7 +1680,6 @@ TOptional<float> SGraphPin_2DAxis::GetTypeInValue_Z() const { return FCString::A
 FString SGraphPin_2DAxis::GetValue(ETextBoxIndex Index) const
 {
 	FString DefaultString = GraphPinObj->GetDefaultAsString();
-	TArray<FString> ResultString;
 
 	FVector Value;
 	Value.InitFromString(DefaultString);
