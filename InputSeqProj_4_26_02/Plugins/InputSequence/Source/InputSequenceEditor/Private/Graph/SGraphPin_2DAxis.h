@@ -58,6 +58,4 @@ protected:
 	void OnStickZoneValueChanged(float NewValue, ETextBoxIndex Index);
 
 	TSharedPtr<SStickZone> StickZone;
-
-	uint8 mouseIsCaptured : 1;
 };
