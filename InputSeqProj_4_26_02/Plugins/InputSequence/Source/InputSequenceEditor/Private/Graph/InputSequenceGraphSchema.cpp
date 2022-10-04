@@ -1199,7 +1199,7 @@ public:
 			OutDrawElements,
 			LayerId,
 			AllottedGeometry.ToPaintGeometry(Position * localSize - Scale * localSize / 2, Scale * localSize),
-			FEditorStyle::GetBrush("Icons.FilledCircle"), ESlateDrawEffect::None,
+			FEditorStyle::GetBrush("TutorialLaunch.Circle"), ESlateDrawEffect::None,
 			color
 		);
 
