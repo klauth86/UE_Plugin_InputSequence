@@ -1,4 +1,4 @@
-// Copyright 2022. Pentangle Studio. All rights reserved.
+// Copyright 2022 Pentangle Studio Licensed under the Apache License, Version 2.0 (the «License»);
 
 #include "Graph/InputSequenceGraphSchema.h"
 #include "Graph/InputSequenceGraph.h"
