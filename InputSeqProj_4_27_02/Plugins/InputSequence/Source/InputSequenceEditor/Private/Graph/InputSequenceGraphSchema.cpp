@@ -1,4 +1,4 @@
-// Copyright 2022. Pentangle Studio. All rights reserved.
+// Copyright 2022 Pentangle Studio Licensed under the Apache License, Version 2.0 (the «License»);
 
 #include "Graph/InputSequenceGraphSchema.h"
 #include "Graph/InputSequenceGraph.h"
@@ -2510,7 +2510,6 @@ FString SGraphPin_Axis::GetCurrentValue_Y() const { return GetValue(TextBox_Y); 
 FString SGraphPin_Axis::GetValue(ETextBoxIndex Index) const
 {
 	FString DefaultString = GraphPinObj->GetDefaultAsString();
-	TArray<FString> ResultString;
 
 	FVector2D Value;
 	Value.InitFromString(DefaultString);
