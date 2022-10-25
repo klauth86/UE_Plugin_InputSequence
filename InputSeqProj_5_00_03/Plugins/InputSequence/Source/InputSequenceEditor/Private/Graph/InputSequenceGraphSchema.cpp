@@ -1278,17 +1278,17 @@ public:
 		);
 
 		int num = 1;
-		double deltaAngle = Position.Y - Position.X;
+		double deltaAngleRad = AngleRadRange.Y - AngleRadRange.X;
 
-		double deltaAnglePath = FMath::Abs(deltaAngle);
-		while (deltaAnglePath > 4 * num) { num++; }
+		double deltaAnglePath = FMath::Abs(deltaAngleRad);
+		double stepAngleThreshold = FMath::DegreesToRadians(4);
+		while (deltaAnglePath > stepAngleThreshold * num) { num++; }
 
-		double stepAngle = deltaAngle / num;
+		double stepAngleRad = deltaAngleRad / num;
+		double currentAngleRad = AngleRadRange.X;
 
 		FVector2D dir;
 		FVector2D prevDir;
-
-		double currentAngle = Position.X;
 
 		FLinearColor color = FLinearColor::White;
 		color.A = 0.75;
@@ -1296,8 +1296,8 @@ public:
 		++LayerId;
 		for (size_t i = 0; i < num; i++)
 		{
-			dir.X = center.X * FMath::Cos(FMath::DegreesToRadians(currentAngle));
-			dir.Y = center.Y * FMath::Sin(-FMath::DegreesToRadians(currentAngle));
+			dir.X = center.X * FMath::Cos(currentAngleRad);
+			dir.Y = center.Y * FMath::Sin(-(currentAngleRad));
 
 			LinePoints.Empty();
 			LinePoints.Add(FVector2D(center + dir * Scale));
@@ -1314,8 +1314,8 @@ public:
 
 			if (i > 0)
 			{
-				prevDir.X = center.X * FMath::Cos(FMath::DegreesToRadians(currentAngle - stepAngle));
-				prevDir.Y = center.Y * FMath::Sin(-FMath::DegreesToRadians(currentAngle - stepAngle));
+				prevDir.X = center.X * FMath::Cos(currentAngleRad - stepAngleRad);
+				prevDir.Y = center.Y * FMath::Sin(-(currentAngleRad - stepAngleRad));
 
 				LinePoints.Empty();
 				LinePoints.Add(FVector2D(center + dir * Scale));
@@ -1331,7 +1331,7 @@ public:
 				);
 			}
 
-			currentAngle += stepAngle;
+			currentAngleRad += stepAngleRad;
 		}
 
 		return LayerId;
@@ -1347,11 +1347,12 @@ public:
 
 			FVector2D position = (localPosition - center) / center;
 			position.Y = -position.Y;
+			
 			double angleRad = FMath::Atan(position.Y / position.X);
 			if (position.X < 0) angleRad += PI;
 
-			Position.X = FMath::RoundToDouble(FMath::RadiansToDegrees(angleRad));
-			OnValueChanged.ExecuteIfBound(Position.X, SGraphPin_2DAxis::ETextBoxIndex::TextBox_X);			
+			AngleRadRange.X = angleRad;
+			OnValueChanged.ExecuteIfBound(FMath::RoundToDouble(FMath::RadiansToDegrees(angleRad)), SGraphPin_2DAxis::ETextBoxIndex::TextBox_X);
 			
 			Scale = FMath::RoundToDouble(100 * position.Size()) / 100;
 			OnValueChanged.ExecuteIfBound(Scale, SGraphPin_2DAxis::ETextBoxIndex::TextBox_Z);
@@ -1391,8 +1392,8 @@ public:
 				double angleRad = FMath::Atan(position.Y / position.X);
 				if (position.X < 0) angleRad += PI;
 
-				Position.Y = FMath::RoundToDouble(FMath::RadiansToDegrees(angleRad));
-				OnValueChanged.ExecuteIfBound(Position.Y, SGraphPin_2DAxis::ETextBoxIndex::TextBox_Y);
+				AngleRadRange.Y = angleRad;
+				OnValueChanged.ExecuteIfBound(FMath::RoundToDouble(FMath::RadiansToDegrees(angleRad)), SGraphPin_2DAxis::ETextBoxIndex::TextBox_Y);
 
 				Scale = FMath::RoundToDouble(100 * position.Size()) / 100;
 				OnValueChanged.ExecuteIfBound(Scale, SGraphPin_2DAxis::ETextBoxIndex::TextBox_Z);
@@ -1415,7 +1416,7 @@ public:
 
 	virtual FVector2D ComputeDesiredSize(float) const override { return FVector2D::ZeroVector; }
 
-	FVector2D Position;
+	FVector2D AngleRadRange;
 	
 	double Scale;
 
@@ -1569,8 +1570,8 @@ void SGraphPin_2DAxis::Construct(const FArguments& Args, UEdGraphPin* InPin)
 		FVector Value;
 		Value.InitFromString(DefaultString);
 
-		StickZone->Position.X = Value.X;
-		StickZone->Position.Y = Value.Y;
+		StickZone->AngleRadRange.X = FMath::DegreesToRadians(Value.X);
+		StickZone->AngleRadRange.Y = FMath::DegreesToRadians(Value.Y);
 
 		StickZone->Scale = Value.Z;
 	}
@@ -1763,7 +1764,7 @@ void SGraphPin_2DAxis::OnChangedValueTextBox_X(float NewValue, ETextCommit::Type
 		return;
 	}
 
-	if (StickZone.IsValid()) StickZone->Position.X = NewValue;
+	if (StickZone.IsValid()) StickZone->AngleRadRange.X = FMath::DegreesToRadians(NewValue);
 
 	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
 
@@ -1777,7 +1778,7 @@ void SGraphPin_2DAxis::OnChangedValueTextBox_Y(float NewValue, ETextCommit::Type
 		return;
 	}
 
-	if (StickZone.IsValid()) StickZone->Position.Y = NewValue;
+	if (StickZone.IsValid()) StickZone->AngleRadRange.Y = FMath::DegreesToRadians(NewValue);
 
 	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
 

@@ -43,9 +43,11 @@ public:
 
 		float axisAngle = FMath::Atan(axisValueB / axisValueA);
 		
-		if (axisValueA < 0) axisAngle += PI;
+		if (axisAngle < 0) axisAngle += PI;
 
-		return X <= axisValueA && axisValueA <= Y || Y <= axisValueA && axisValueA <= X;
+		if (X <= axisValueA && axisValueA <= Y || Y <= axisValueA && axisValueA <= X) { Index++; return true; }
+
+		return false;
 	}
 
 	void Reset() { Index = INDEX_NONE; }

@@ -32,7 +32,7 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 			{
 				RequestResetWithNode(activeIndex, state);
 			}
-			else if (inputActionEvents.Num())
+			else if (inputActionEvents.Num() + inputAxisEvents.Num())
 			{
 				bool match = true;
 
