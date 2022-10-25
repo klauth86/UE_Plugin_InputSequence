@@ -326,11 +326,32 @@ void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
 							FVector Value;
 							Value.InitFromString(DefaultString);
 
+							double xRad = FMath::DegreesToRadians(Value.X);
+							double yRad = FMath::DegreesToRadians(Value.Y);
+
+							double startAngleRad = FMath::Min(xRad, yRad);
+							double endAngleRad = FMath::Max(xRad, yRad);
+
+							// Full round
+							if (endAngleRad - startAngleRad > DOUBLE_TWO_PI)
+							{
+								startAngleRad = -DOUBLE_HALF_PI;
+								endAngleRad = DOUBLE_HALF_PI * 3;
+							}
+							else
+							{
+								while (startAngleRad < -DOUBLE_HALF_PI)
+								{
+									startAngleRad += DOUBLE_TWO_PI;
+									endAngleRad += DOUBLE_TWO_PI;
+								}
+							}
+
 							FString lhs;
 							FString rhs;
 							if (pin->PinName.ToString().Split(separator, &lhs, &rhs))
 							{
-								state.InputActions.Add(pin->PinName, FInputActionState({}, Value.X, Value.Y, Value.Z, lhs, rhs));
+								state.InputActions.Add(pin->PinName, FInputActionState({}, startAngleRad, endAngleRad, Value.Z, lhs, rhs));
 							}
 						}
 					}
@@ -1349,11 +1370,16 @@ public:
 			position.Y = -position.Y;
 			
 			double angleRad = FMath::Atan(position.Y / position.X);
-			if (position.X < 0) angleRad += PI;
+			if (position.X < 0) angleRad += DOUBLE_PI;
+
+			prevAngleRad = angleRad;
 
 			AngleRadRange.X = angleRad;
 			OnValueChanged.ExecuteIfBound(FMath::RoundToDouble(FMath::RadiansToDegrees(angleRad)), SGraphPin_2DAxis::ETextBoxIndex::TextBox_X);
 			
+			AngleRadRange.Y = angleRad;
+			OnValueChanged.ExecuteIfBound(FMath::RoundToDouble(FMath::RadiansToDegrees(angleRad)), SGraphPin_2DAxis::ETextBoxIndex::TextBox_Y);
+
 			Scale = FMath::RoundToDouble(100 * position.Size()) / 100;
 			OnValueChanged.ExecuteIfBound(Scale, SGraphPin_2DAxis::ETextBoxIndex::TextBox_Z);
 
@@ -1389,11 +1415,20 @@ public:
 
 				FVector2D position = (localPosition - center) / center;
 				position.Y = -position.Y;
-				double angleRad = FMath::Atan(position.Y / position.X);
-				if (position.X < 0) angleRad += PI;
 
-				AngleRadRange.Y = angleRad;
-				OnValueChanged.ExecuteIfBound(FMath::RoundToDouble(FMath::RadiansToDegrees(angleRad)), SGraphPin_2DAxis::ETextBoxIndex::TextBox_Y);
+				double angleRad = FMath::Atan(position.Y / position.X);
+				if (position.X < 0) angleRad += DOUBLE_PI;
+
+				double deltaAngleRad = angleRad - prevAngleRad;
+
+				if (deltaAngleRad > DOUBLE_PI) deltaAngleRad -= DOUBLE_TWO_PI;
+				
+				if (deltaAngleRad < -DOUBLE_PI) deltaAngleRad += DOUBLE_TWO_PI;
+
+				AngleRadRange.Y += deltaAngleRad;
+				OnValueChanged.ExecuteIfBound(FMath::RoundToDouble(FMath::RadiansToDegrees(AngleRadRange.Y)), SGraphPin_2DAxis::ETextBoxIndex::TextBox_Y);
+
+				prevAngleRad = angleRad;
 
 				Scale = FMath::RoundToDouble(100 * position.Size()) / 100;
 				OnValueChanged.ExecuteIfBound(Scale, SGraphPin_2DAxis::ETextBoxIndex::TextBox_Z);
@@ -1418,6 +1453,8 @@ public:
 
 	FVector2D AngleRadRange;
 	
+	double prevAngleRad;
+
 	double Scale;
 
 	FOnValueChanged OnValueChanged;

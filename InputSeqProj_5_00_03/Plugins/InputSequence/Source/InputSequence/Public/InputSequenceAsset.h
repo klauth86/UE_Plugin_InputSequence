@@ -39,13 +39,14 @@ public:
 
 	bool ConsumeInput_2DAxis(float axisValueA, float axisValueB)
 	{
-		if (axisValueA * axisValueA + axisValueB * axisValueB <= Z* Z) return false;
+		if (axisValueA * axisValueA + axisValueB * axisValueB <= Z * Z) return false;
 
-		float axisAngle = FMath::Atan(axisValueB / axisValueA);
-		
-		if (axisAngle < 0) axisAngle += PI;
+		float axisAngleRad = FMath::Atan(axisValueB / axisValueA);		
+		if (axisValueA < 0) axisAngleRad += PI;
 
-		if (X <= axisValueA && axisValueA <= Y || Y <= axisValueA && axisValueA <= X) { Index++; return true; }
+		while (axisAngleRad < X) axisAngleRad += TWO_PI;
+
+		if (X <= axisAngleRad && axisAngleRad <= Y) { Index++; return true; }
 
 		return false;
 	}
