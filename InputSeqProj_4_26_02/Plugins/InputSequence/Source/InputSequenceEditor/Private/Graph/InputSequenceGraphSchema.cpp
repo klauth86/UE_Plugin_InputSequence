@@ -327,11 +327,32 @@ void UInputSequenceGraph::PreSave(const class ITargetPlatform* TargetPlatform)
 							FVector Value;
 							Value.InitFromString(DefaultString);
 
+							float xRad = FMath::DegreesToRadians(Value.X);
+							float yRad = FMath::DegreesToRadians(Value.Y);
+
+							float startAngleRad = FMath::Min(xRad, yRad);
+							float endAngleRad = FMath::Max(xRad, yRad);
+
+							// Full round
+							if (endAngleRad - startAngleRad > 2 * PI)
+							{
+								startAngleRad = -HALF_PI;
+								endAngleRad = HALF_PI * 3;
+							}
+							else
+							{
+								while (startAngleRad < -HALF_PI)
+								{
+									startAngleRad += 2 * PI;
+									endAngleRad += 2 * PI;
+								}
+							}
+
 							FString lhs;
 							FString rhs;
 							if (pin->PinName.ToString().Split(separator, &lhs, &rhs))
 							{
-								state.InputActions.Add(pin->PinName, FInputActionState({}, Value.X, Value.Y, Value.Z, lhs, rhs));
+								state.InputActions.Add(pin->PinName, FInputActionState({}, startAngleRad, endAngleRad, Value.Z, lhs, rhs));
 							}
 						}
 					}
@@ -825,7 +846,7 @@ FText UInputSequenceGraphNode_GoToStart::GetTooltipText() const
 void UInputSequenceGraphNode_Hub::AllocateDefaultPins()
 {
 	CreatePin(EGPD_Input, UInputSequenceGraphSchema::PC_Exec, NAME_None);
-	CreatePin(EGPD_Output, UInputSequenceGraphSchema::PC_Exec, FName("0"));
+	CreatePin(EGPD_Output, UInputSequenceGraphSchema::PC_Exec, FName("1"));
 
 	CreatePin(EGPD_Output, UInputSequenceGraphSchema::PC_HubAdd, "Add pin");
 }
@@ -1189,103 +1210,150 @@ public:
 	{
 		FVector2D localSize = AllottedGeometry.GetLocalSize();
 
+		FVector2D center = localSize / 2;
+
 		TArray<FVector2D> LinePoints;
 
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(center.X, 0.f));
+		LinePoints.Add(FVector2D(center.X, localSize.Y));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(0, center.Y));
+		LinePoints.Add(FVector2D(localSize.X, center.Y));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(0, 0));
+		LinePoints.Add(FVector2D(localSize.X, 0));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(0, localSize.Y));
+		LinePoints.Add(FVector2D(localSize.X, localSize.Y));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(0, 0));
+		LinePoints.Add(FVector2D(0, localSize.Y));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		++LayerId;
+		LinePoints.Empty();
+		LinePoints.Add(FVector2D(localSize.X, 0));
+		LinePoints.Add(FVector2D(localSize.X, localSize.Y));
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			LinePoints,
+			ESlateDrawEffect::None,
+			FLinearColor::Red
+		);
+
+		int num = 1;
+		float deltaAngleRad = AngleRadRange.Y - AngleRadRange.X;
+
+		float deltaAnglePath = FMath::Abs(deltaAngleRad);
+		float stepAngleThreshold = FMath::DegreesToRadians(4);
+		while (deltaAnglePath > stepAngleThreshold * num) { num++; }
+
+		float stepAngleRad = deltaAngleRad / num;
+		float currentAngleRad = AngleRadRange.X;
+
+		FVector2D dir;
+		FVector2D prevDir;
+
 		FLinearColor color = FLinearColor::White;
-		color.A = 0.25;
+		color.A = 0.75;
 
 		++LayerId;
-		FSlateDrawElement::MakeBox(
-			OutDrawElements,
-			LayerId,
-			AllottedGeometry.ToPaintGeometry(Position * localSize - Scale * localSize / 2, Scale * localSize),
-			FEditorStyle::GetBrush("TutorialLaunch.Circle"), ESlateDrawEffect::None,
-			color
-		);
+		for (size_t i = 0; i < num; i++)
+		{
+			dir.X = center.X * FMath::Cos(currentAngleRad);
+			dir.Y = center.Y * FMath::Sin(-(currentAngleRad));
 
-		++LayerId;
-		LinePoints.Empty();
-		LinePoints.Add(FVector2D(localSize.X / 2, 0.f));
-		LinePoints.Add(FVector2D(localSize.X / 2, localSize.Y));
+			LinePoints.Empty();
+			LinePoints.Add(FVector2D(center + dir * Scale));
+			LinePoints.Add(FVector2D(center + dir * 10));
 
-		FSlateDrawElement::MakeLines(
-			OutDrawElements,
-			LayerId,
-			AllottedGeometry.ToPaintGeometry(),
-			LinePoints,
-			ESlateDrawEffect::None,
-			FLinearColor::Red
-		);
+			FSlateDrawElement::MakeLines(
+				OutDrawElements,
+				LayerId,
+				AllottedGeometry.ToPaintGeometry(),
+				LinePoints,
+				ESlateDrawEffect::None,
+				color
+			);
 
-		++LayerId;
-		LinePoints.Empty();
-		LinePoints.Add(FVector2D(0, localSize.Y / 2));
-		LinePoints.Add(FVector2D(localSize.X, localSize.Y / 2));
+			if (i > 0)
+			{
+				prevDir.X = center.X * FMath::Cos(currentAngleRad - stepAngleRad);
+				prevDir.Y = center.Y * FMath::Sin(-(currentAngleRad - stepAngleRad));
 
-		FSlateDrawElement::MakeLines(
-			OutDrawElements,
-			LayerId,
-			AllottedGeometry.ToPaintGeometry(),
-			LinePoints,
-			ESlateDrawEffect::None,
-			FLinearColor::Red
-		);
+				LinePoints.Empty();
+				LinePoints.Add(FVector2D(center + dir * Scale));
+				LinePoints.Add(FVector2D(center + prevDir * Scale));
 
-		++LayerId;
-		LinePoints.Empty();
-		LinePoints.Add(FVector2D(0, 0));
-		LinePoints.Add(FVector2D(localSize.X, 0));
+				FSlateDrawElement::MakeLines(
+					OutDrawElements,
+					LayerId,
+					AllottedGeometry.ToPaintGeometry(),
+					LinePoints,
+					ESlateDrawEffect::None,
+					color
+				);
+			}
 
-		FSlateDrawElement::MakeLines(
-			OutDrawElements,
-			LayerId,
-			AllottedGeometry.ToPaintGeometry(),
-			LinePoints,
-			ESlateDrawEffect::None,
-			FLinearColor::Red
-		);
-
-		++LayerId;
-		LinePoints.Empty();
-		LinePoints.Add(FVector2D(0, localSize.Y));
-		LinePoints.Add(FVector2D(localSize.X, localSize.Y));
-
-		FSlateDrawElement::MakeLines(
-			OutDrawElements,
-			LayerId,
-			AllottedGeometry.ToPaintGeometry(),
-			LinePoints,
-			ESlateDrawEffect::None,
-			FLinearColor::Red
-		);
-
-		++LayerId;
-		LinePoints.Empty();
-		LinePoints.Add(FVector2D(0, 0));
-		LinePoints.Add(FVector2D(0, localSize.Y));
-
-		FSlateDrawElement::MakeLines(
-			OutDrawElements,
-			LayerId,
-			AllottedGeometry.ToPaintGeometry(),
-			LinePoints,
-			ESlateDrawEffect::None,
-			FLinearColor::Red
-		);
-
-		++LayerId;
-		LinePoints.Empty();
-		LinePoints.Add(FVector2D(localSize.X, 0));
-		LinePoints.Add(FVector2D(localSize.X, localSize.Y));
-
-		FSlateDrawElement::MakeLines(
-			OutDrawElements,
-			LayerId,
-			AllottedGeometry.ToPaintGeometry(),
-			LinePoints,
-			ESlateDrawEffect::None,
-			FLinearColor::Red
-		);
+			currentAngleRad += stepAngleRad;
+		}
 
 		return LayerId;
 	}
@@ -1295,13 +1363,25 @@ public:
 		if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 		{
 			FVector2D localSize = MyGeometry.GetLocalSize();
+			FVector2D center = localSize / 2;
 			FVector2D localPosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 
-			Position.X = localSize.X > 0 ? FMath::RoundToFloat(100 * localPosition.X / localSize.X) / 100 : 0;
-			Position.Y = localSize.Y > 0 ? FMath::RoundToFloat(100 * localPosition.Y / localSize.Y) / 100 : 0;
+			FVector2D position = (localPosition - center) / center;
+			position.Y = -position.Y;
+			
+			float angleRad = FMath::Atan(position.Y / position.X);
+			if (position.X < 0) angleRad += PI;
 
-			OnValueChanged.ExecuteIfBound(Position.X, SGraphPin_2DAxis::ETextBoxIndex::TextBox_X);
-			OnValueChanged.ExecuteIfBound(Position.Y, SGraphPin_2DAxis::ETextBoxIndex::TextBox_Y);
+			prevAngleRad = angleRad;
+
+			AngleRadRange.X = angleRad;
+			OnValueChanged.ExecuteIfBound(FMath::RoundToFloat(FMath::RadiansToDegrees(angleRad)), SGraphPin_2DAxis::ETextBoxIndex::TextBox_X);
+
+			AngleRadRange.Y = angleRad;
+			OnValueChanged.ExecuteIfBound(FMath::RoundToFloat(FMath::RadiansToDegrees(angleRad)), SGraphPin_2DAxis::ETextBoxIndex::TextBox_Y);
+
+			Scale = FMath::RoundToFloat(100 * position.Size()) / 100;
+			OnValueChanged.ExecuteIfBound(Scale, SGraphPin_2DAxis::ETextBoxIndex::TextBox_Z);
 
 			return FReply::Handled().CaptureMouse(SharedThis(this));
 		}
@@ -1330,13 +1410,28 @@ public:
 			if (IsHovered())
 			{
 				FVector2D localSize = MyGeometry.GetLocalSize();
+				FVector2D center = localSize / 2;
 				FVector2D localPosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 
-				Position.X = localSize.X > 0 ? FMath::RoundToFloat(100 * localPosition.X / localSize.X) / 100 : 0;
-				Position.Y = localSize.Y > 0 ? FMath::RoundToFloat(100 * localPosition.Y / localSize.Y) / 100 : 0;
+				FVector2D position = (localPosition - center) / center;
+				position.Y = -position.Y;
+				
+				float angleRad = FMath::Atan(position.Y / position.X);
+				if (position.X < 0) angleRad += PI;
 
-				OnValueChanged.ExecuteIfBound(Position.X, SGraphPin_2DAxis::ETextBoxIndex::TextBox_X);
-				OnValueChanged.ExecuteIfBound(Position.Y, SGraphPin_2DAxis::ETextBoxIndex::TextBox_Y);
+				float deltaAngleRad = angleRad - prevAngleRad;
+
+                if (deltaAngleRad > PI) deltaAngleRad -= 2 * PI;
+                
+                if (deltaAngleRad < -PI) deltaAngleRad += 2 * PI;
+
+                AngleRadRange.Y += deltaAngleRad;
+                OnValueChanged.ExecuteIfBound(FMath::RoundToFloat(FMath::RadiansToDegrees(AngleRadRange.Y)), SGraphPin_2DAxis::ETextBoxIndex::TextBox_Y);
+
+                prevAngleRad = angleRad;
+
+				Scale = FMath::RoundToFloat(100 * position.Size()) / 100;
+				OnValueChanged.ExecuteIfBound(Scale, SGraphPin_2DAxis::ETextBoxIndex::TextBox_Z);
 			}
 
 			return FReply::Handled();
@@ -1347,19 +1442,20 @@ public:
 
 	virtual FReply OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
 	{
-		Scale.X = FMath::Max(0.f, Scale.X + (MouseEvent.GetWheelDelta() > 0 ? 0.1f : -0.1f));
-		Scale.Y = Scale.X;
+		Scale = FMath::Max(0.0, Scale + (MouseEvent.GetWheelDelta() > 0 ? 0.01 : -0.01));
 
-		OnValueChanged.ExecuteIfBound(Scale.X, SGraphPin_2DAxis::TextBox_Z);
+		OnValueChanged.ExecuteIfBound(Scale, SGraphPin_2DAxis::TextBox_Z);
 
 		return FReply::Handled();
 	}
 
 	virtual FVector2D ComputeDesiredSize(float) const override { return FVector2D::ZeroVector; }
 
-	FVector2D Position;
+	FVector2D AngleRadRange;
 
-	FVector2D Scale;
+	float prevAngleRad;
+
+	float Scale;
 
 	FOnValueChanged OnValueChanged;
 };
@@ -1511,11 +1607,10 @@ void SGraphPin_2DAxis::Construct(const FArguments& Args, UEdGraphPin* InPin)
 		FVector Value;
 		Value.InitFromString(DefaultString);
 
-		StickZone->Position.X = Value.X;
-		StickZone->Position.Y = Value.Y;
+		StickZone->AngleRadRange.X = FMath::DegreesToRadians(Value.X);
+		StickZone->AngleRadRange.Y = FMath::DegreesToRadians(Value.Y);
 
-		StickZone->Scale.X = Value.Z;
-		StickZone->Scale.Y = Value.Z;
+		StickZone->Scale = Value.Z;
 	}
 }
 
@@ -1580,24 +1675,24 @@ TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
 			.FillColumn(0, 0).FillColumn(1, 1).FillColumn(2, 0)
 		.FillRow(0, 0).FillRow(1, 1).FillRow(2, 0)
 
-		+ SGridPanel::Slot(0, 0)
+		+ SGridPanel::Slot(1, 0)
 		[
-			SNew(SBox).WidthOverride(32).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
+			SNew(SBox).WidthOverride(16).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
 			[
 				SNew(STextBlock)
 				.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
-		.Text(LOCTEXT("LeftBottomPoint", "[-1, 1]"))
+		.Text(LOCTEXT("LeftBottomPoint", "+y"))
 		.ColorAndOpacity(LabelClr)
 			]
 		]
 
-	+ SGridPanel::Slot(0, 2)
+	+ SGridPanel::Slot(2, 1)
 		[
-			SNew(SBox).WidthOverride(32).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
+			SNew(SBox).WidthOverride(16).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
 			[
 				SNew(STextBlock)
 				.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
-		.Text(LOCTEXT("LeftBottomPoint", "[-1, -1]"))
+		.Text(LOCTEXT("LeftBottomPoint", "+x"))
 		.ColorAndOpacity(LabelClr)
 			]
 		]
@@ -1611,24 +1706,24 @@ TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
 			]
 		]
 
-	+ SGridPanel::Slot(2, 0)
+	+ SGridPanel::Slot(1, 2)
 		[
-			SNew(SBox).WidthOverride(32).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
+			SNew(SBox).WidthOverride(16).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
 			[
 				SNew(STextBlock)
 				.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
-		.Text(LOCTEXT("RightTopPoint", "[1, 1]"))
+		.Text(LOCTEXT("RightTopPoint", "-y"))
 		.ColorAndOpacity(LabelClr)
 			]
 		]
 
-	+ SGridPanel::Slot(2, 2)
+	+ SGridPanel::Slot(0, 1)
 		[
-			SNew(SBox).WidthOverride(32).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
+			SNew(SBox).WidthOverride(16).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
 			[
 				SNew(STextBlock)
 				.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
-		.Text(LOCTEXT("RightTopPoint", "[1, -1]"))
+		.Text(LOCTEXT("RightTopPoint", "-x"))
 		.ColorAndOpacity(LabelClr)
 			]
 		]
@@ -1652,7 +1747,7 @@ TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
 		[
 			SNew(STextBlock)
 			.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
-		.Text(LOCTEXT("LeftParenthesis", "Range:"))
+		.Text(LOCTEXT("LeftParenthesis", "min:"))
 		.ColorAndOpacity(LabelClr)
 		]
 
@@ -1706,7 +1801,7 @@ void SGraphPin_2DAxis::OnChangedValueTextBox_X(float NewValue, ETextCommit::Type
 		return;
 	}
 
-	if (StickZone.IsValid()) StickZone->Position.X = NewValue;
+	if (StickZone.IsValid()) StickZone->AngleRadRange.X = FMath::DegreesToRadians(NewValue);
 
 	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
 
@@ -1720,7 +1815,7 @@ void SGraphPin_2DAxis::OnChangedValueTextBox_Y(float NewValue, ETextCommit::Type
 		return;
 	}
 
-	if (StickZone.IsValid()) StickZone->Position.Y = NewValue;
+	if (StickZone.IsValid()) StickZone->AngleRadRange.Y = FMath::DegreesToRadians(NewValue);
 
 	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
 
@@ -1736,8 +1831,7 @@ void SGraphPin_2DAxis::OnChangedValueTextBox_Z(float NewValue, ETextCommit::Type
 
 	if (StickZone.IsValid())
 	{
-		StickZone->Scale.X = NewValue;
-		StickZone->Scale.Y = NewValue;
+		StickZone->Scale = NewValue;
 	}
 
 	const FString ValueStr = FString::Printf(TEXT("%f"), NewValue);
@@ -2937,6 +3031,21 @@ FReply SGraphPin_HubExec::OnClicked_Raw_RemovePin() const
 
 		{
 			const FScopedTransaction Transaction(LOCTEXT("K2_DeletePin", "Delete Pin"));
+
+			int nextAfterRemovedIndex = FromNode->Pins.IndexOfByKey(FromPin) + 1;
+
+			if (FromNode->Pins.IsValidIndex(nextAfterRemovedIndex))
+			{
+				for (size_t i = nextAfterRemovedIndex; i < FromNode->Pins.Num(); i++)
+				{
+					UEdGraphPin* pin = FromNode->Pins[i];
+
+					if (pin->Direction == EGPD_Output && pin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Exec)
+					{
+						pin->PinName = FName(FString::FromInt(i - 1));
+					}
+				}
+			}
 
 			FromNode->RemovePin(FromPin);
 
