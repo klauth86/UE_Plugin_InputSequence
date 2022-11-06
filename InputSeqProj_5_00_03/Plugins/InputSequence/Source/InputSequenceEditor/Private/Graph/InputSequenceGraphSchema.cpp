@@ -846,7 +846,7 @@ FText UInputSequenceGraphNode_GoToStart::GetTooltipText() const
 void UInputSequenceGraphNode_Hub::AllocateDefaultPins()
 {
 	CreatePin(EGPD_Input, UInputSequenceGraphSchema::PC_Exec, NAME_None);
-	CreatePin(EGPD_Output, UInputSequenceGraphSchema::PC_Exec, FName("0"));
+	CreatePin(EGPD_Output, UInputSequenceGraphSchema::PC_Exec, FName("1"));
 
 	CreatePin(EGPD_Output, UInputSequenceGraphSchema::PC_HubAdd, "Add pin");
 }
@@ -3022,6 +3022,21 @@ FReply SGraphPin_HubExec::OnClicked_Raw_RemovePin() const
 
 		{
 			const FScopedTransaction Transaction(LOCTEXT("K2_DeletePin", "Delete Pin"));
+
+			int nextAfterRemovedIndex = FromNode->Pins.IndexOfByKey(FromPin) + 1;
+
+			if (FromNode->Pins.IsValidIndex(nextAfterRemovedIndex))
+			{
+				for (size_t i = nextAfterRemovedIndex; i < FromNode->Pins.Num(); i++)
+				{
+					UEdGraphPin* pin = FromNode->Pins[i];
+
+					if (pin->Direction == EGPD_Output && pin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Exec)
+					{
+						pin->PinName = FName(FString::FromInt(i - 1));
+					}
+				}
+			}
 
 			FromNode->RemovePin(FromPin);
 
