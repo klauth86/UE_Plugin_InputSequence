@@ -28,7 +28,7 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "Framework/Commands/GenericCommands.h"
 
-#include "Classes/EditorStyleSettings.h"
+#include "Settings/EditorStyleSettings.h"
 #include "GameFramework/InputSettings.h"
 #include "SGraphActionMenu.h"
 #include "SPinTypeSelector.h"
@@ -571,7 +571,7 @@ public:
 
 		ChildSlot
 			[
-				SNew(SBorder).BorderImage(FEditorStyle::GetBrush("Menu.Background")).Padding(5)
+				SNew(SBorder).BorderImage(FAppStyle::GetBrush("Menu.Background")).Padding(5)
 				[
 					SNew(SBox)
 					.MinDesiredWidth(300)
@@ -1105,7 +1105,7 @@ public:
 			.AutoWidth().Padding(2).HAlign(HAlign_Fill)
 			[
 				SNew(STextBlock)
-				.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+				.Font(FAppStyle::GetFontStyle( "Graph.VectorEditableTextBox" ))
 			.Text(LOCTEXT("LeftParenthesis", "("))
 			.ColorAndOpacity(LabelClr)
 			]
@@ -1117,10 +1117,10 @@ public:
 				SNew(SNumericEntryBox<float>)
 				.Value(this, &S1DAxisTextBox::GetTypeInValue_X)
 			.OnValueCommitted(InArgs._OnFloatCommitted_Box_X)
-			.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+			.Font(FAppStyle::GetFontStyle( "Graph.VectorEditableTextBox" ))
 			.UndeterminedString(LOCTEXT("MultipleValues", "Multiple Values"))
 			.ToolTipText(LOCTEXT("VectorNodeXAxisValueLabel_ToolTip", "From value"))
-			.EditableTextBoxStyle(&FEditorStyle::GetWidgetStyle<FEditableTextBoxStyle>("Graph.VectorEditableTextBox"))
+			.EditableTextBoxStyle(&FAppStyle::GetWidgetStyle<FEditableTextBoxStyle>("Graph.VectorEditableTextBox"))
 			.BorderForegroundColor(FLinearColor::White)
 			.BorderBackgroundColor(FLinearColor::White)
 			]
@@ -1129,7 +1129,7 @@ public:
 			.AutoWidth().Padding(2).HAlign(HAlign_Fill)
 			[
 				SNew(STextBlock)
-				.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+				.Font(FAppStyle::GetFontStyle( "Graph.VectorEditableTextBox" ))
 			.Text(LOCTEXT("Mediator", ","))
 			.ColorAndOpacity(LabelClr)
 			]
@@ -1141,10 +1141,10 @@ public:
 				SNew(SNumericEntryBox<float>)
 				.Value(this, &S1DAxisTextBox::GetTypeInValue_Y)
 			.OnValueCommitted(InArgs._OnFloatCommitted_Box_Y)
-			.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+			.Font(FAppStyle::GetFontStyle( "Graph.VectorEditableTextBox" ))
 			.UndeterminedString(LOCTEXT("MultipleValues", "Multiple Values"))
 			.ToolTipText(LOCTEXT("VectorNodeYAxisValueLabel_ToolTip", "To value"))
-			.EditableTextBoxStyle(&FEditorStyle::GetWidgetStyle<FEditableTextBoxStyle>("Graph.VectorEditableTextBox"))
+			.EditableTextBoxStyle(&FAppStyle::GetWidgetStyle<FEditableTextBoxStyle>("Graph.VectorEditableTextBox"))
 			.BorderForegroundColor(FLinearColor::White)
 			.BorderBackgroundColor(FLinearColor::White)
 			]
@@ -1153,7 +1153,7 @@ public:
 			.AutoWidth().Padding(2).HAlign(HAlign_Fill)
 			[
 				SNew(STextBlock)
-				.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+				.Font(FAppStyle::GetFontStyle( "Graph.VectorEditableTextBox" ))
 			.Text(LOCTEXT("RightParenthesis", ")"))
 			.ColorAndOpacity(LabelClr)
 			]
@@ -1507,7 +1507,7 @@ void SGraphPin_2DAxis::Construct(const FArguments& Args, UEdGraphPin* InPin)
 	static const FName NAME_NoBorder("NoBorder");
 	TSharedRef<SWidget> PinStatusIndicator =
 		SNew(SButton)
-		.ButtonStyle(FEditorStyle::Get(), NAME_NoBorder)
+		.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
 		.Visibility(this, &SGraphPin_2DAxis::GetPinStatusIconVisibility)
 		.ContentPadding(0)
 		.OnClicked(this, &SGraphPin_2DAxis::ClickedOnPinStatusIcon)
@@ -1558,11 +1558,11 @@ void SGraphPin_2DAxis::Construct(const FArguments& Args, UEdGraphPin* InPin)
 		[
 			SNew(SButton).ToolTipText_Raw(this, &SGraphPin_2DAxis::ToolTipText_Raw_RemovePin)
 			.Cursor(EMouseCursor::Hand)
-		.ButtonStyle(FEditorStyle::Get(), "NoBorder")
+		.ButtonStyle(FAppStyle::Get(), "NoBorder")
 		.ForegroundColor(FSlateColor::UseForeground())
 		.OnClicked_Raw(this, &SGraphPin_2DAxis::OnClicked_Raw_RemovePin)
 		[
-			SNew(SImage).Image(FEditorStyle::GetBrush("Cross"))
+			SNew(SImage).Image(FAppStyle::GetBrush("Cross"))
 		]
 		]
 	+ SHorizontalBox::Slot()
@@ -1581,7 +1581,7 @@ void SGraphPin_2DAxis::Construct(const FArguments& Args, UEdGraphPin* InPin)
 
 	// Set up a hover for pins that is tinted the color of the pin.
 	SBorder::Construct(SBorder::FArguments()
-		.BorderImage(FEditorStyle::GetBrush("NoBorder"))
+		.BorderImage(FAppStyle::GetBrush("NoBorder"))
 		.BorderBackgroundColor(this, &SGraphPin_2DAxis::GetPinColor)
 		[
 			SNew(SLevelOfDetailBranchNode)
@@ -1680,7 +1680,7 @@ TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
 				SNew(SBox).WidthOverride(16).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
 				[
 					SNew(STextBlock)
-					.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
+					.Font(FAppStyle::GetFontStyle("StandardDialog.SmallFont"))
 					.Text(LOCTEXT("LeftBottomPoint", "+y"))
 					.ColorAndOpacity(LabelClr)
 				]
@@ -1691,7 +1691,7 @@ TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
 				SNew(SBox).WidthOverride(16).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
 				[
 					SNew(STextBlock)
-					.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
+					.Font(FAppStyle::GetFontStyle("StandardDialog.SmallFont"))
 					.Text(LOCTEXT("LeftBottomPoint", "+x"))
 					.ColorAndOpacity(LabelClr)
 				]
@@ -1711,7 +1711,7 @@ TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
 				SNew(SBox).WidthOverride(16).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
 				[
 					SNew(STextBlock)
-					.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
+					.Font(FAppStyle::GetFontStyle("StandardDialog.SmallFont"))
 					.Text(LOCTEXT("RightTopPoint", "-y"))
 					.ColorAndOpacity(LabelClr)
 				]
@@ -1722,7 +1722,7 @@ TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
 				SNew(SBox).WidthOverride(16).HeightOverride(16).VAlign(VAlign_Center).HAlign(HAlign_Center)
 				[
 					SNew(STextBlock)
-					.Font(FEditorStyle::GetFontStyle("StandardDialog.SmallFont"))
+					.Font(FAppStyle::GetFontStyle("StandardDialog.SmallFont"))
 					.Text(LOCTEXT("RightTopPoint", "-x"))
 					.ColorAndOpacity(LabelClr)
 				]
@@ -1746,7 +1746,7 @@ TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
 			+ SGridPanel::Slot(0, 1).VAlign(VAlign_Center).Padding(2)
 			[
 				SNew(STextBlock)
-				.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+				.Font(FAppStyle::GetFontStyle( "Graph.VectorEditableTextBox" ))
 				.Text(LOCTEXT("LeftParenthesis", "min:"))
 				.ColorAndOpacity(LabelClr)
 			]
@@ -1756,9 +1756,9 @@ TSharedRef<SWidget> SGraphPin_2DAxis::GetDefaultValueWidget()
 				SNew(SNumericEntryBox<float>)
 				.Value(this, &SGraphPin_2DAxis::GetTypeInValue_Z)
 				.OnValueCommitted(this, &SGraphPin_2DAxis::OnChangedValueTextBox_Z)
-				.Font(FEditorStyle::GetFontStyle("Graph.VectorEditableTextBox"))
+				.Font(FAppStyle::GetFontStyle( "Graph.VectorEditableTextBox" ))
 				.UndeterminedString(LOCTEXT("MultipleValues", "Multiple Values"))
-				.EditableTextBoxStyle(&FEditorStyle::GetWidgetStyle<FEditableTextBoxStyle>("Graph.VectorEditableTextBox"))
+				.EditableTextBoxStyle(&FAppStyle::GetWidgetStyle<FEditableTextBoxStyle>("Graph.VectorEditableTextBox"))
 				.BorderForegroundColor(FLinearColor::White)
 				.BorderBackgroundColor(FLinearColor::White)
 			]
@@ -1980,7 +1980,7 @@ void SGraphPin_Action::Construct(const FArguments& Args, UEdGraphPin* InPin)
 		SNew(SOverlay)
 		+ SOverlay::Slot()
 		[
-			SNew(SImage).Image(FEditorStyle::GetBrush(TEXT("Icons.CircleArrowUp")))
+			SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.CircleArrowUp"))
 			.Visibility_Raw(this, &SGraphPin_Action::Visibility_Raw_ArrowUp)
 		]
 	+ SOverlay::Slot().VAlign(VAlign_Center).HAlign(HAlign_Center)
@@ -1994,7 +1994,7 @@ void SGraphPin_Action::Construct(const FArguments& Args, UEdGraphPin* InPin)
 	static const FName NAME_NoBorder("NoBorder");
 	TSharedRef<SWidget> PinStatusIndicator =
 		SNew(SButton)
-		.ButtonStyle(FEditorStyle::Get(), NAME_NoBorder)
+		.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
 		.Visibility(this, &SGraphPin_Action::GetPinStatusIconVisibility)
 		.ContentPadding(0)
 		.OnClicked(this, &SGraphPin_Action::ClickedOnPinStatusIcon)
@@ -2057,7 +2057,7 @@ void SGraphPin_Action::Construct(const FArguments& Args, UEdGraphPin* InPin)
 			.VAlign(VAlign_Center)
 			.Padding(0, 0, InArgs._SideToSideMargin, 0)
 			[
-				SNew(SImage).Image(FEditorStyle::GetBrush(TEXT("Icons.CircleArrowUp")))
+				SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.CircleArrowUp"))
 			]
 		+ SHorizontalBox::Slot()
 			.AutoWidth()
@@ -2076,11 +2076,11 @@ void SGraphPin_Action::Construct(const FArguments& Args, UEdGraphPin* InPin)
 			[
 				SNew(SButton).ToolTipText_Raw(this, &SGraphPin_Action::ToolTipText_Raw_RemovePin)
 				.Cursor(EMouseCursor::Hand)
-			.ButtonStyle(FEditorStyle::Get(), "NoBorder")
+			.ButtonStyle(FAppStyle::Get(), "NoBorder")
 			.ForegroundColor(FSlateColor::UseForeground())
 			.OnClicked_Raw(this, &SGraphPin_Action::OnClicked_Raw_RemovePin)
 			[
-				SNew(SImage).Image(FEditorStyle::GetBrush("Cross"))
+				SNew(SImage).Image(FAppStyle::GetBrush("Cross"))
 			]
 			]
 		+ SHorizontalBox::Slot()
@@ -2097,11 +2097,11 @@ void SGraphPin_Action::Construct(const FArguments& Args, UEdGraphPin* InPin)
 			[
 				SNew(SButton).ToolTipText_Raw(this, &SGraphPin_Action::ToolTipText_Raw_TogglePin)
 				.Cursor(EMouseCursor::Hand)
-			.ButtonStyle(FEditorStyle::Get(), "NoBorder")
+			.ButtonStyle(FAppStyle::Get(), "NoBorder")
 			.ForegroundColor(FSlateColor::UseForeground())
 			.OnClicked_Raw(this, &SGraphPin_Action::OnClicked_Raw_TogglePin)
 			[
-				SNew(SImage).Image(FEditorStyle::GetBrush(TEXT("Icons.CircleArrowDown")))
+				SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.CircleArrowDown"))
 			]
 			]
 		+ SHorizontalBox::Slot()
@@ -2114,7 +2114,7 @@ void SGraphPin_Action::Construct(const FArguments& Args, UEdGraphPin* InPin)
 
 	// Set up a hover for pins that is tinted the color of the pin.
 	SBorder::Construct(SBorder::FArguments()
-		.BorderImage(FEditorStyle::GetBrush("NoBorder"))
+		.BorderImage(FAppStyle::GetBrush("NoBorder"))
 		.BorderBackgroundColor(this, &SGraphPin_Action::GetPinColor)
 		[
 			SNew(SLevelOfDetailBranchNode)
@@ -2323,7 +2323,7 @@ void SGraphPin_Add::Construct(const FArguments& Args, UEdGraphPin* InPin)
 		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetClass()->GetName()) : TEXT("NULL OUTER")
 	);
 
-	TSharedRef<SWidget> PinWidgetRef = SNew(SImage).Image(FEditorStyle::GetBrush(TEXT("Icons.PlusCircle")));
+	TSharedRef<SWidget> PinWidgetRef = SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"));
 
 	PinImage = PinWidgetRef;
 
@@ -2331,7 +2331,7 @@ void SGraphPin_Add::Construct(const FArguments& Args, UEdGraphPin* InPin)
 	static const FName NAME_NoBorder("NoBorder");
 	TSharedRef<SWidget> PinStatusIndicator =
 		SNew(SButton)
-		.ButtonStyle(FEditorStyle::Get(), NAME_NoBorder)
+		.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
 		.Visibility(this, &SGraphPin_Add::GetPinStatusIconVisibility)
 		.ContentPadding(0)
 		.OnClicked(this, &SGraphPin_Add::ClickedOnPinStatusIcon)
@@ -2376,12 +2376,12 @@ void SGraphPin_Add::Construct(const FArguments& Args, UEdGraphPin* InPin)
 
 	// Set up a hover for pins that is tinted the color of the pin.
 	SBorder::Construct(SBorder::FArguments()
-		.BorderImage(FEditorStyle::GetBrush("NoBorder"))
+		.BorderImage(FAppStyle::GetBrush("NoBorder"))
 		.BorderBackgroundColor(this, &SGraphPin_Add::GetPinColor)
 		[
 			SAssignNew(AddButton, SComboButton)
 			.HasDownArrow(false)
-		.ButtonStyle(FEditorStyle::Get(), "NoBorder")
+		.ButtonStyle(FAppStyle::Get(), "NoBorder")
 		.ForegroundColor(FSlateColor::UseForeground())
 		.OnGetMenuContent(this, &SGraphPin_Add::OnGetAddButtonMenuContent)
 		.HAlign(HAlign_Center)
@@ -2450,7 +2450,7 @@ void SGraphPin_Axis::Construct(const FArguments& Args, UEdGraphPin* InPin)
 	static const FName NAME_NoBorder("NoBorder");
 	TSharedRef<SWidget> PinStatusIndicator =
 		SNew(SButton)
-			.ButtonStyle(FEditorStyle::Get(), NAME_NoBorder)
+			.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
 			.Visibility(this, &SGraphPin_Axis::GetPinStatusIconVisibility)
 			.ContentPadding(0)
 			.OnClicked(this, &SGraphPin_Axis::ClickedOnPinStatusIcon)
@@ -2501,11 +2501,11 @@ void SGraphPin_Axis::Construct(const FArguments& Args, UEdGraphPin* InPin)
 		[
 			SNew(SButton).ToolTipText_Raw(this, &SGraphPin_Axis::ToolTipText_Raw_RemovePin)
 				.Cursor(EMouseCursor::Hand)
-				.ButtonStyle(FEditorStyle::Get(), "NoBorder")
+				.ButtonStyle(FAppStyle::Get(), "NoBorder")
 				.ForegroundColor(FSlateColor::UseForeground())
 				.OnClicked_Raw(this, &SGraphPin_Axis::OnClicked_Raw_RemovePin)
 				[
-					SNew(SImage).Image(FEditorStyle::GetBrush("Cross"))
+					SNew(SImage).Image(FAppStyle::GetBrush("Cross"))
 				]
 		]
 	+ SHorizontalBox::Slot()
@@ -2524,7 +2524,7 @@ void SGraphPin_Axis::Construct(const FArguments& Args, UEdGraphPin* InPin)
 
 	// Set up a hover for pins that is tinted the color of the pin.
 	SBorder::Construct(SBorder::FArguments()
-		.BorderImage(FEditorStyle::GetBrush("NoBorder"))
+		.BorderImage(FAppStyle::GetBrush("NoBorder"))
 		.BorderBackgroundColor(this, &SGraphPin_Axis::GetPinColor)
 		[
 			SNew(SLevelOfDetailBranchNode)
@@ -2725,7 +2725,7 @@ void SGraphPin_HubAdd::Construct(const FArguments& Args, UEdGraphPin* InPin)
 		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetClass()->GetName()) : TEXT("NULL OUTER")
 	);
 
-	TSharedRef<SWidget> PinWidgetRef = SNew(SImage).Image(FEditorStyle::GetBrush(TEXT("Icons.PlusCircle")));
+	TSharedRef<SWidget> PinWidgetRef = SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"));
 
 	PinImage = PinWidgetRef;
 
@@ -2733,7 +2733,7 @@ void SGraphPin_HubAdd::Construct(const FArguments& Args, UEdGraphPin* InPin)
 	static const FName NAME_NoBorder("NoBorder");
 	TSharedRef<SWidget> PinStatusIndicator =
 		SNew(SButton)
-		.ButtonStyle(FEditorStyle::Get(), NAME_NoBorder)
+		.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
 		.Visibility(this, &SGraphPin_HubAdd::GetPinStatusIconVisibility)
 		.ContentPadding(0)
 		.OnClicked(this, &SGraphPin_HubAdd::ClickedOnPinStatusIcon)
@@ -2778,11 +2778,11 @@ void SGraphPin_HubAdd::Construct(const FArguments& Args, UEdGraphPin* InPin)
 
 	// Set up a hover for pins that is tinted the color of the pin.
 	SBorder::Construct(SBorder::FArguments()
-		.BorderImage(FEditorStyle::GetBrush("NoBorder"))
+		.BorderImage(FAppStyle::GetBrush("NoBorder"))
 		.BorderBackgroundColor(this, &SGraphPin_HubAdd::GetPinColor)
 		[
 			SNew(SButton)
-		.ButtonStyle(FEditorStyle::Get(), "NoBorder")
+		.ButtonStyle(FAppStyle::Get(), "NoBorder")
 		.ForegroundColor(FSlateColor::UseForeground())
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Center)
@@ -2864,7 +2864,7 @@ void SGraphPin_HubExec::Construct(const FArguments& Args, UEdGraphPin* InPin)
 	static const FName NAME_NoBorder("NoBorder");
 	TSharedRef<SWidget> PinStatusIndicator =
 		SNew(SButton)
-		.ButtonStyle(FEditorStyle::Get(), NAME_NoBorder)
+		.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
 		.Visibility(this, &SGraphPin_HubExec::GetPinStatusIconVisibility)
 		.ContentPadding(0)
 		.OnClicked(this, &SGraphPin_HubExec::ClickedOnPinStatusIcon)
@@ -2960,11 +2960,11 @@ void SGraphPin_HubExec::Construct(const FArguments& Args, UEdGraphPin* InPin)
 			[
 				SNew(SButton).ToolTipText_Raw(this, &SGraphPin_HubExec::ToolTipText_Raw_RemovePin)
 				.Cursor(EMouseCursor::Hand)
-			.ButtonStyle(FEditorStyle::Get(), "NoBorder")
+			.ButtonStyle(FAppStyle::Get(), "NoBorder")
 			.ForegroundColor(FSlateColor::UseForeground())
 			.OnClicked_Raw(this, &SGraphPin_HubExec::OnClicked_Raw_RemovePin)
 			[
-				SNew(SImage).Image(FEditorStyle::GetBrush("Cross"))
+				SNew(SImage).Image(FAppStyle::GetBrush("Cross"))
 			]
 			]
 			+ SHorizontalBox::Slot()
@@ -3112,12 +3112,12 @@ void FInputSequenceAssetEditor::RegisterTabSpawners(const TSharedRef<class FTabM
 	InTabManager->RegisterTabSpawner(DetailsTabId, FOnSpawnTab::CreateSP(this, &FInputSequenceAssetEditor::SpawnTab_DetailsTab))
 		.SetDisplayName(LOCTEXT("DetailsTab_DisplayName", "Details"))
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FEditorStyle::GetStyleSetName(), "LevelEditor.Tabs.Details"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 
 	InTabManager->RegisterTabSpawner(GraphTabId, FOnSpawnTab::CreateSP(this, &FInputSequenceAssetEditor::SpawnTab_GraphTab))
 		.SetDisplayName(LOCTEXT("GraphTab_DisplayName", "Graph"))
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FEditorStyle::GetStyleSetName(), "GraphEditor.EventGraph_16x"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "GraphEditor.EventGraph_16x"));
 }
 
 void FInputSequenceAssetEditor::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)
@@ -3178,7 +3178,7 @@ TSharedRef<SDockTab> FInputSequenceAssetEditor::SpawnTab_GraphTab(const FSpawnTa
 			.AdditionalCommands(GraphEditorCommands)
 		.Appearance(AppearanceInfo)
 		.GraphEvents(InEvents)
-		.TitleBar(SNew(STextBlock).Text(LOCTEXT("GraphTab_Title", "Input Sequence Asset")).TextStyle(FEditorStyle::Get(), TEXT("GraphBreadcrumbButtonText")))
+		.TitleBar(SNew(STextBlock).Text(LOCTEXT("GraphTab_Title", "Input Sequence Asset")).TextStyle(FAppStyle::Get(), TEXT("GraphBreadcrumbButtonText")))
 		.GraphToEdit(InputSequenceAsset->EdGraph)
 		];
 }
