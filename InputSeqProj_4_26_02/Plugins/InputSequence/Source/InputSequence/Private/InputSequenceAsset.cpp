@@ -32,11 +32,11 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 			{
 				RequestResetWithNode(activeIndex, state);
 			}
-			else if (inputActionEvents.Num() + inputAxisEvents.Num())
+			else
 			{
 				bool match = true;
 
-				if (!state.IsAxisNode) // No need to check Precise Match for Axis Input because it comes as continual data
+				if (!state.IsAxisNode && inputActionEvents.Num() > 0) // No need to check Precise Match for Axis Input because it comes as continual data
 				{
 					if (requirePreciseMatch && !state.isOverridingRequirePreciseMatch || state.isOverridingRequirePreciseMatch && state.requirePreciseMatch)
 					{
