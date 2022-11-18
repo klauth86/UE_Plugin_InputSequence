@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 5,
-	"VersionName": "1.4",
+	"Version": 6,
+	"VersionName": "1.5",
 	"FriendlyName": "Input Sequence",
 	"Description": "Input Sequence",
 	"Category": "Input",
