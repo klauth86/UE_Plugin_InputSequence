@@ -228,8 +228,9 @@ void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
 		struct FNodesQueueEntry {
 			UEdGraphNode* Node = nullptr;
 			int32 FirstLayerParentIndex = INDEX_NONE;
+			TSet<FName> PressedActions;
 
-			FNodesQueueEntry(UEdGraphNode* node = nullptr, int32 firstLayerParentIndex = INDEX_NONE) : Node(node), FirstLayerParentIndex(firstLayerParentIndex) {}
+			FNodesQueueEntry(UEdGraphNode* const node = nullptr, const int32 firstLayerParentIndex = INDEX_NONE, const TSet<FName>& pressedActions = {}) : Node(node), FirstLayerParentIndex(firstLayerParentIndex), PressedActions(pressedActions) {}
 		};
 
 		TArray<FGuidCollection> linkedNodesMapping;
@@ -249,6 +250,9 @@ void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
 
 			FInputSequenceState& state = inputSequenceAsset->States[emplacedIndex];
 			state.FirstLayerParentIndex = currentGraphNodeEntry.FirstLayerParentIndex;
+			state.PressedActions = currentGraphNodeEntry.PressedActions;
+
+			TSet<FName> pressedActions = currentGraphNodeEntry.PressedActions;
 
 			if (UInputSequenceGraphNode_Input* inputNode = Cast<UInputSequenceGraphNode_Input>(currentGraphNodeEntry.Node))
 			{
@@ -283,6 +287,8 @@ void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
 							{
 								static FInputActionState waitForPress({ IE_Pressed });
 								state.InputActions.Add(pin->PinName, waitForPress);
+
+								pressedActions.Add(pin->PinName);
 							}
 						}
 					}
@@ -295,6 +301,9 @@ void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
 						{
 							static FInputActionState waitForRelease({ IE_Released });
 							state.InputActions.Add(pin->PinName, waitForRelease);
+							state.PressedActions.Remove(pin->PinName);
+
+							pressedActions.Remove(pin->PinName);
 						}
 					}
 
@@ -368,7 +377,7 @@ void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
 			for (UEdGraphNode* linkedNode : linkedNodes)
 			{
 				linkedNodesMapping[emplacedIndex].Guids.Add(linkedNode->NodeGuid);
-				graphNodesQueue.Enqueue(FNodesQueueEntry(linkedNode, currentGraphNodeEntry.FirstLayerParentIndex > 0 ? currentGraphNodeEntry.FirstLayerParentIndex : emplacedIndex));
+				graphNodesQueue.Enqueue(FNodesQueueEntry(linkedNode, currentGraphNodeEntry.FirstLayerParentIndex > 0 ? currentGraphNodeEntry.FirstLayerParentIndex : emplacedIndex, pressedActions));
 			}
 		}
 
