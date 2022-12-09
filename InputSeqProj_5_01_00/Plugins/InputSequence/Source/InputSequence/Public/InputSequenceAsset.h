@@ -66,16 +66,12 @@ protected:
 
 	UPROPERTY()
 		float X;
-
 	UPROPERTY()
 		float Y;
-
 	UPROPERTY()
 		float Z;
-
 	UPROPERTY()
 		FName SubNameA;
-
 	UPROPERTY()
 		FName SubNameB;
 };
@@ -87,34 +83,7 @@ struct INPUTSEQUENCE_API FInputSequenceState
 
 public:
 
-	FInputSequenceState()
-	{
-		AccumulatedTime = 0;
-
-		InputActions.Reset();
-		PressedActions.Reset();
-		EnterEventClasses.Reset();
-		PassEventClasses.Reset();
-		ResetEventClasses.Reset();
-		NextIndice.Reset();
-		FirstLayerParentIndex = INDEX_NONE;
-
-		StateObject = nullptr;
-		StateContext = "";
-
-		IsInputNode = 0;
-		IsAxisNode = 0;
-
-		canBePassedAfterTime = 0;
-
-		isOverridingResetAfterTime = 0;
-		isResetAfterTime = 0;
-
-		isOverridingRequirePreciseMatch = 0;
-		requirePreciseMatch = 0;
-
-		TimeParam = 0;
-	}
+	FInputSequenceState();
 
 	bool IsStartNode() const { return FirstLayerParentIndex == INDEX_NONE; }
 
@@ -122,77 +91,9 @@ public:
 
 	bool IsEmpty() const { return InputActions.Num() == 0; }
 
-	bool IsOpen() const
-	{
-		for (const TPair<FName, FInputActionState>& inputActionEntry : InputActions)
-		{
-			const FName& actionName = inputActionEntry.Key;
-			const FInputActionState& inputActionState = inputActionEntry.Value;
+	bool IsOpen() const;
 
-			if (IsAxisNode && !inputActionState.IsOpen_Axis() || !inputActionState.IsOpen_Action()) return false;
-		}
-
-		return true;
-	}
-
-	bool ConsumeInput(const TMap<FName, TEnumAsByte<EInputEvent>> inputActionEvents, const TSet<FName>& pressedActions, const TMap<FName, float>& inputAxisEvents)
-	{
-		bool result = false;
-
-		for (TPair<FName, FInputActionState>& inputActionEntry : InputActions)
-		{
-			const FName& actionName = inputActionEntry.Key;
-			FInputActionState& inputActionState = inputActionEntry.Value;
-
-			if (IsAxisNode)
-			{
-				if (inputActionState.Is2DAxis())
-				{
-					if (inputAxisEvents.Contains(inputActionState.GetSubNameA()) && inputAxisEvents.Contains(inputActionState.GetSubNameB()))
-					{
-						if (inputActionState.ConsumeInput_2DAxis(inputAxisEvents[inputActionState.GetSubNameA()], inputAxisEvents[inputActionState.GetSubNameB()]))
-						{
-							AccumulatedTime = 0;
-							result = true;
-						}
-					}
-				}
-				else
-				{
-					if (inputAxisEvents.Contains(actionName) && !inputActionState.IsOpen_Axis())
-					{
-						if (inputActionState.ConsumeInput_Axis(inputAxisEvents[actionName]))
-						{
-							AccumulatedTime = 0;
-							result = true;
-						}
-					}
-				}
-			}
-			else
-			{
-				if (inputActionEvents.Contains(actionName) && !inputActionState.IsOpen_Action())
-				{
-					if (inputActionState.ConsumeInput_Action(inputActionEvents[actionName]))
-					{
-						AccumulatedTime = 0;
-						result = true;
-					}
-				}
-
-				if (pressedActions.Contains(actionName) && !inputActionState.IsOpen_Action())
-				{
-					if (inputActionState.ConsumeInput_Action(IE_Pressed))
-					{
-						AccumulatedTime = 0;
-						result = true;
-					}
-				}
-			}
-		}
-
-		return result;
-	}
+	bool ConsumeInput(const TMap<FName, TEnumAsByte<EInputEvent>> inputActionEvents, const TSet<FName>& pressedActions, const TMap<FName, float>& inputAxisEvents);
 
 	void Reset()
 	{
