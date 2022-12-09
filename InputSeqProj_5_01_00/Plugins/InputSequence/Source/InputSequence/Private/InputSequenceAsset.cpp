@@ -18,6 +18,15 @@ UInputSequenceAsset::UInputSequenceAsset(const FObjectInitializer& objInit) :Sup
 
 void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused, const TMap<FName, TEnumAsByte<EInputEvent>>& inputActionEvents, const TMap<FName, float>& inputAxisEvents, TArray<FInputSequenceEventCall>& outEventCalls, TArray<FInputSequenceResetSource>& outResetSources)
 {
+	for (const TPair<FName, TEnumAsByte<EInputEvent>>& inputActionEvent : inputActionEvents)
+	{
+		if (inputActionEvent.Value == EInputEvent::IE_Released) PressedActions.Remove(inputActionEvent.Key);
+		if (inputActionEvent.Value == EInputEvent::IE_Pressed) PressedActions.FindOrAdd(inputActionEvent.Key);
+	}
+
+	int32 inputActionEventsNum = inputActionEvents.Num();
+	int32 pressedActionsNum = PressedActions.Num();
+
 	if (ActiveIndice.IsEmpty()) MakeTransition(0, States[0].NextIndice, outEventCalls);
 
 	TSet<int32> prevActiveIndice = ActiveIndice;
@@ -27,6 +36,7 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 		for (int32 activeIndex : prevActiveIndice)
 		{
 			FInputSequenceState& state = States[activeIndex];
+			int32 stateInputActionsNum = state.InputActions.Num();
 
 			if (!state.IsInputNode)
 			{
@@ -36,26 +46,30 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 			{
 				bool match = true;
 
-				if (!state.IsAxisNode && inputActionEvents.Num() > 0) // No need to check Precise Match for Axis Input because it comes as continual data
+				if (!state.IsAxisNode && (inputActionEventsNum + pressedActionsNum) > 0) // No need to check Precise Match for Axis Input because it comes as continual data
 				{
 					if (requirePreciseMatch && !state.isOverridingRequirePreciseMatch || state.isOverridingRequirePreciseMatch && state.requirePreciseMatch)
 					{
-						if (inputActionEvents.Num() != state.InputActions.Num())
+						for (const TPair<FName, TEnumAsByte<EInputEvent>>& inputActionEvent : inputActionEvents)
+						{
+							if (!state.InputActions.Contains(inputActionEvent.Key))
+							{
+								match = false;
+								RequestResetWithNode(activeIndex, state);
+
+								break;
+							}
+						}
+					}
+
+					for (const FName& pressedAction : state.PressedActions)
+					{
+						if (!PressedActions.Contains(pressedAction))
 						{
 							match = false;
 							RequestResetWithNode(activeIndex, state);
-						}
-						else
-						{
-							for (TPair<FName, FInputActionState>& inputActionEntry : state.InputActions)
-							{
-								if (!inputActionEvents.Contains(inputActionEntry.Key))
-								{
-									match = false;
-									RequestResetWithNode(activeIndex, state);
-									break;
-								}
-							}
+
+							break;
 						}
 					}
 				}
@@ -66,7 +80,7 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 					{
 						float accumulatedTime = state.AccumulatedTime;
 
-						if (state.ConsumeInput(inputActionEvents, inputAxisEvents))
+						if (state.ConsumeInput(inputActionEvents, PressedActions, inputAxisEvents))
 						{
 							match = state.IsOpen();
 
@@ -79,7 +93,7 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 					}
 					else
 					{
-						match = state.ConsumeInput(inputActionEvents, inputAxisEvents) && state.IsOpen();
+						match = state.ConsumeInput(inputActionEvents, PressedActions, inputAxisEvents) && state.IsOpen();
 					}
 				}
 

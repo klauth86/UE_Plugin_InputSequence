@@ -92,6 +92,7 @@ public:
 		AccumulatedTime = 0;
 
 		InputActions.Reset();
+		PressedActions.Reset();
 		EnterEventClasses.Reset();
 		PassEventClasses.Reset();
 		ResetEventClasses.Reset();
@@ -134,7 +135,7 @@ public:
 		return true;
 	}
 
-	bool ConsumeInput(const TMap<FName, TEnumAsByte<EInputEvent>> inputActionEvents, const TMap<FName, float>& inputAxisEvents)
+	bool ConsumeInput(const TMap<FName, TEnumAsByte<EInputEvent>> inputActionEvents, const TSet<FName>& pressedActions, const TMap<FName, float>& inputAxisEvents)
 	{
 		bool result = false;
 
@@ -178,6 +179,15 @@ public:
 						result = true;
 					}
 				}
+
+				if (pressedActions.Contains(actionName) && !inputActionState.IsOpen_Action())
+				{
+					if (inputActionState.ConsumeInput_Action(IE_Pressed))
+					{
+						AccumulatedTime = 0;
+						result = true;
+					}
+				}
 			}
 		}
 
@@ -194,6 +204,8 @@ public:
 
 	UPROPERTY()
 		TMap<FName, FInputActionState> InputActions;
+	UPROPERTY()
+		TSet<FName> PressedActions;
 	UPROPERTY()
 		TArray<TSubclassOf<UInputSequenceEvent>> EnterEventClasses;
 	UPROPERTY()
@@ -352,6 +364,8 @@ protected:
 	mutable FCriticalSection resetSourcesCS;
 
 	TSet<int32> ActiveIndice;
+
+	TSet<FName> PressedActions;
 
 	UPROPERTY()
 		TArray<FInputSequenceResetSource> ResetSources;
