@@ -27,6 +27,20 @@ public:
 	virtual void PostProcessInput(const float DeltaTime, const bool bGamePaused) override
 	{
 		Super::PostProcessInput(DeltaTime, bGamePaused);
-		OnPostProcessInput(DeltaTime, bGamePaused);	
+		OnPostProcessInput(DeltaTime, bGamePaused);
 	}
+
+	UFUNCTION(BlueprintCallable, Category = "Player Controller IS")
+		void RegisterInputActionEvent(FName inputActionName, EInputEvent inputEvent) { InputActionEvents.Add(inputActionName, inputEvent); }
+
+	UFUNCTION(BlueprintCallable, Category = "Player Controller IS")
+		void RegisterInputAxisEvent(FName inputAxisName, float axisValue) { InputAxisEvents.Add(inputAxisName, axisValue); }
+
+protected:
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Controller IS")
+		TMap<FName, TEnumAsByte<EInputEvent>> InputActionEvents;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Controller IS")
+		TMap<FName, float> InputAxisEvents;
 };
