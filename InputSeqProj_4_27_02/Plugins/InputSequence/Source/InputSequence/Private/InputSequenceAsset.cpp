@@ -153,6 +153,8 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 				{
 					if (requirePreciseMatch && !state.isOverridingRequirePreciseMatch || state.isOverridingRequirePreciseMatch && state.requirePreciseMatch)
 					{
+						// Match with Input Action Events
+
 						for (const TPair<FName, TEnumAsByte<EInputEvent>>& inputActionEvent : inputActionEvents)
 						{
 							if (!state.InputActions.Contains(inputActionEvent.Key))
@@ -163,7 +165,22 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 								break;
 							}
 						}
+
+						// Match with Pressed Actions
+
+						for (const FName& pressedAction : PressedActions)
+						{
+							if (!state.PressedActions.Contains(pressedAction) && !state.InputActions.Contains(pressedAction))
+							{
+								match = false;
+								RequestResetWithNode(activeIndex, state);
+
+								break;
+							}
+						}
 					}
+
+					// Match Press-Release logic
 
 					for (const FName& pressedAction : state.PressedActions)
 					{
@@ -176,6 +193,8 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 						}
 					}
 				}
+
+				// Process if match
 
 				if (match && !state.IsOpen())
 				{
