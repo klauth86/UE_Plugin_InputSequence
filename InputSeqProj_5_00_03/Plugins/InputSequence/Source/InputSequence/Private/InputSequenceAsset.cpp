@@ -150,28 +150,15 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 			{
 				bool match = true;
 
-				if (!state.IsAxisNode && (inputActionEventsNum + pressedActionsNum) > 0) // No need to check Precise Match for Axis Input because it comes as continual data
+				if ((inputActionEventsNum + pressedActionsNum) > 0)
 				{
-					if (requirePreciseMatch && !state.isOverridingRequirePreciseMatch || state.isOverridingRequirePreciseMatch && state.requirePreciseMatch)
+					// Match with Pressed Actions for all
+
+					for (const FName& pressedAction : PressedActions)
 					{
-						// Match with Input Action Events
-
-						for (const TPair<FName, TEnumAsByte<EInputEvent>>& inputActionEvent : inputActionEvents)
+						if (!state.PressedActions.Contains(pressedAction))
 						{
-							if (!state.InputActions.Contains(inputActionEvent.Key))
-							{
-								match = false;
-								RequestResetWithNode(activeIndex, state);
-
-								break;
-							}
-						}
-
-						// Match with Pressed Actions
-
-						for (const FName& pressedAction : PressedActions)
-						{
-							if (!state.PressedActions.Contains(pressedAction) && !state.InputActions.Contains(pressedAction))
+							if (state.IsAxisNode || !state.InputActions.Contains(pressedAction))
 							{
 								match = false;
 								RequestResetWithNode(activeIndex, state);
@@ -181,8 +168,30 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 						}
 					}
 
-					// Match Press-Release logic
+					// Match with Input Action Events only for Input Actions
 
+					if (match && !state.IsAxisNode)
+					{
+						if (requirePreciseMatch && !state.isOverridingRequirePreciseMatch || state.isOverridingRequirePreciseMatch && state.requirePreciseMatch)
+						{
+							for (const TPair<FName, TEnumAsByte<EInputEvent>>& inputActionEvent : inputActionEvents)
+							{
+								if (!state.InputActions.Contains(inputActionEvent.Key))
+								{
+									match = false;
+									RequestResetWithNode(activeIndex, state);
+
+									break;
+								}
+							}
+						}
+					}
+				}
+
+				// Match with must-Pressed Actions for all
+
+				if (match)
+				{
 					for (const FName& pressedAction : state.PressedActions)
 					{
 						if (!PressedActions.Contains(pressedAction))
