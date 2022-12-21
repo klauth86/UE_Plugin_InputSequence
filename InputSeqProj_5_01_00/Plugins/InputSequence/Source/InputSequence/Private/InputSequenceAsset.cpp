@@ -169,7 +169,7 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 
 					// Match with Input Action Events only for Input Actions
 
-					if (!state.IsAxisNode)
+					if (match && !state.IsAxisNode)
 					{
 						if (requirePreciseMatch && !state.isOverridingRequirePreciseMatch || state.isOverridingRequirePreciseMatch && state.requirePreciseMatch)
 						{
@@ -189,14 +189,17 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 
 				// Match with must-Pressed Actions for all
 
-				for (const FName& pressedAction : state.PressedActions)
+				if (match)
 				{
-					if (!PressedActions.Contains(pressedAction))
+					for (const FName& pressedAction : state.PressedActions)
 					{
-						match = false;
-						RequestResetWithNode(activeIndex, state);
+						if (!PressedActions.Contains(pressedAction))
+						{
+							match = false;
+							RequestResetWithNode(activeIndex, state);
 
-						break;
+							break;
+						}
 					}
 				}
 
