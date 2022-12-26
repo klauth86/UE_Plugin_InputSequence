@@ -116,6 +116,8 @@ public:
 	UPROPERTY()
 		TSet<int32> NextIndice;
 	UPROPERTY()
+		int32 DepthIndex;
+	UPROPERTY()
 		int32 FirstLayerParentIndex;
 
 	UPROPERTY()
