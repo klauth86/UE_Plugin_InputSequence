@@ -224,12 +224,19 @@ void UInputSequenceGraph::PreSave(const class ITargetPlatform* TargetPlatform)
 			TArray<FGuid> Guids;
 		};
 
-		struct FNodesQueueEntry {
+		struct FNodesQueueEntry
+		{
 			UEdGraphNode* Node = nullptr;
+			int32 DepthIndex = 0;
 			int32 FirstLayerParentIndex = INDEX_NONE;
 			TSet<FName> PressedActions;
 
-			FNodesQueueEntry(UEdGraphNode* const node = nullptr, const int32 firstLayerParentIndex = INDEX_NONE, const TSet<FName>& pressedActions = {}) : Node(node), FirstLayerParentIndex(firstLayerParentIndex), PressedActions(pressedActions) {}
+			FNodesQueueEntry(UEdGraphNode* const node = nullptr, const int depthIndex = 0, const int32 firstLayerParentIndex = INDEX_NONE, const TSet<FName>& pressedActions = {})
+				: Node(node)
+				, DepthIndex(depthIndex)
+				, FirstLayerParentIndex(firstLayerParentIndex)
+				, PressedActions(pressedActions)
+			{}
 		};
 
 		TArray<FGuidCollection> linkedNodesMapping;
@@ -237,7 +244,7 @@ void UInputSequenceGraph::PreSave(const class ITargetPlatform* TargetPlatform)
 		TMap<FGuid, int> indexMapping;
 
 		TQueue<FNodesQueueEntry> graphNodesQueue;
-		graphNodesQueue.Enqueue(FNodesQueueEntry(Nodes[0], INDEX_NONE));
+		graphNodesQueue.Enqueue(FNodesQueueEntry(Nodes[0], 0, INDEX_NONE));
 
 		FNodesQueueEntry currentGraphNodeEntry(nullptr, INDEX_NONE);
 		while (graphNodesQueue.Dequeue(currentGraphNodeEntry))
@@ -248,6 +255,7 @@ void UInputSequenceGraph::PreSave(const class ITargetPlatform* TargetPlatform)
 			linkedNodesMapping.Emplace();
 
 			FInputSequenceState& state = inputSequenceAsset->States[emplacedIndex];
+			state.DepthIndex = currentGraphNodeEntry.DepthIndex;
 			state.FirstLayerParentIndex = currentGraphNodeEntry.FirstLayerParentIndex;
 			state.PressedActions = currentGraphNodeEntry.PressedActions;
 
@@ -376,7 +384,7 @@ void UInputSequenceGraph::PreSave(const class ITargetPlatform* TargetPlatform)
 			for (UEdGraphNode* linkedNode : linkedNodes)
 			{
 				linkedNodesMapping[emplacedIndex].Guids.Add(linkedNode->NodeGuid);
-				graphNodesQueue.Enqueue(FNodesQueueEntry(linkedNode, currentGraphNodeEntry.FirstLayerParentIndex > 0 ? currentGraphNodeEntry.FirstLayerParentIndex : emplacedIndex, pressedActions));
+				graphNodesQueue.Enqueue(FNodesQueueEntry(linkedNode, currentGraphNodeEntry.DepthIndex + 1, currentGraphNodeEntry.FirstLayerParentIndex > 0 ? currentGraphNodeEntry.FirstLayerParentIndex : emplacedIndex, pressedActions));
 			}
 		}
 
