@@ -303,6 +303,7 @@ void UInputSequenceAsset::EnterNode(int32 nodeIndex, TArray<FInputSequenceEventC
 		{
 			int32 emplacedIndex = outEventCalls.Emplace();
 			outEventCalls[emplacedIndex].EventClass = enterEventClass;
+			outEventCalls[emplacedIndex].Index = nodeIndex;
 			outEventCalls[emplacedIndex].Object = state.StateObject;
 			outEventCalls[emplacedIndex].Context = state.StateContext;
 		}
@@ -326,6 +327,7 @@ void UInputSequenceAsset::PassNode(int32 nodeIndex, TArray<FInputSequenceEventCa
 		{
 			int32 emplacedIndex = outEventCalls.Emplace();
 			outEventCalls[emplacedIndex].EventClass = passEventClass;
+			outEventCalls[emplacedIndex].Index = nodeIndex;
 			outEventCalls[emplacedIndex].Object = state.StateObject;
 			outEventCalls[emplacedIndex].Context = state.StateContext;
 		}
@@ -361,6 +363,7 @@ void UInputSequenceAsset::ProcessResetSources(TArray<FInputSequenceEventCall>& o
 		{
 			int32 emplacedIndex = outEventCalls.Emplace();
 			outEventCalls[emplacedIndex].EventClass = resetEventClass;
+			outEventCalls[emplacedIndex].Index = nodeIndex;
 			outEventCalls[emplacedIndex].Object = state.StateObject;
 			outEventCalls[emplacedIndex].Context = state.StateContext;
 		}
