@@ -40,6 +40,9 @@
 #include "UObject/ObjectSaveContext.h"
 #include "SGraphPanel.h"
 
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "InputAction.h"
+
 const FString separator = " ^ ";
 
 template<class T>
@@ -63,9 +66,17 @@ void AddNewActionIfHasNo(FGraphContextMenuBuilder& ContextMenuBuilder, const FTe
 	Action->NodeTemplate = NewObject<T>(ContextMenuBuilder.OwnerOfTemporaries);
 }
 
-void AddPin(UEdGraphNode* node, FName category, FName pinName, const UEdGraphNode::FCreatePinParams& params)
+void AddPin(UEdGraphNode* node, FName category, FName pinName, const UEdGraphNode::FCreatePinParams& params, UObject* inputActionObj)
 {
-	node->CreatePin(EGPD_Output, category, pinName, params);
+	UEdGraphPin* graphPin = node->CreatePin(EGPD_Output, category, pinName, params);
+
+	if (inputActionObj)
+	{
+		if (UInputSequenceGraphNode_Input* inputNode = Cast<UInputSequenceGraphNode_Input>(node))
+		{
+			inputNode->GetPinsInputActions().Add(pinName, inputActionObj);
+		}
+	}
 
 	node->Modify();
 
@@ -483,7 +494,7 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_AddPin::PerformAction(class UEdGra
 		
 		const FName& pc = IsAxis ? (Is2DAxis ? UInputSequenceGraphSchema::PC_2DAxis : UInputSequenceGraphSchema::PC_Axis) : UInputSequenceGraphSchema::PC_Action;
 
-		AddPin(FromPin->GetOwningNode(), pc, InputName, params);
+		AddPin(FromPin->GetOwningNode(), pc, InputName, params, InputAction);
 	}
 
 	return ResultNode;
@@ -671,15 +682,53 @@ protected:
 		if (isAxis)
 		{
 			if (InSectionID == 1) return NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Section_Axis", "Axis");
-			if (InSectionID == 2) return NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Section_2DAxis", "2D Axis");
+			if (InSectionID == 2) return NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Section_Axis2D", "Axis 2D");
+
+			if (InSectionID == 3) return NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Section_Enhanced_Axis", "Axis (Enhanced Input)");
+			if (InSectionID == 4) return NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Section_Enhanced_Axis2D", "Axis 2D (Enhanced Input)");
 		}
 		else
 		{
-			if (InSectionID == 1) return NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Section_Action", "Actions");
+			if (InSectionID == 1) return NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Section_Action", "Action");
+			if (InSectionID == 2) return NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Section_Action_Enhanced", "Action (Enhanced Input)");
 		}
 
 		return FText::GetEmpty();
 	}
+
+	void CollectAction(const FName& inputName, UInputAction* inputAction, TSet<int32>& alreadyAdded, int& mappingIndex, const FText& toolTip,  int32 sectionID, bool isAxis, bool is2DAxis, TArray<TSharedPtr<FEdGraphSchemaAction>>& schemaActions)
+	{
+		if (Node && Node->FindPin(inputName))
+		{
+			alreadyAdded.Add(mappingIndex);
+		}
+		else
+		{
+			TSharedPtr<FInputSequenceGraphSchemaAction_AddPin> schemaAction(
+				new FInputSequenceGraphSchemaAction_AddPin(
+					FText::GetEmpty()
+					, FText::FromName(inputName)
+					, toolTip
+					, 0
+					, sectionID
+				)
+			);
+
+			schemaAction->InputName = inputName;
+			schemaAction->InputAction = inputAction;
+			schemaAction->InputIndex = mappingIndex;
+			schemaAction->CorrectedInputIndex = 0;
+			schemaAction->IsAxis = isAxis;
+			schemaAction->Is2DAxis = is2DAxis;
+
+			schemaActions.Add(schemaAction);
+		}
+
+		mappingIndex++;
+	}
+
+	const FText simpleFormat = NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Tooltip", "Add {0} for {1}");
+	const FText complex2DFormat = NSLOCTEXT("SInputSequenceParameterMenu_Pin_2D_Complex", "AddPin_Tooltip", "Add Axis pin for 2D {0} ^ {1}");
 
 	virtual void CollectAllActions(FGraphActionListBuilderBase& OutAllActions) override
 	{
@@ -687,13 +736,62 @@ protected:
 
 		const bool isAxis = Node&& Node->IsA<UInputSequenceGraphNode_Axis>();
 
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+		FARFilter Filter;
+		Filter.ClassPaths.Add(UInputAction::StaticClass()->GetClassPathName());
+		Filter.bRecursiveClasses = true;
+		Filter.bRecursivePaths = true;
+
+		TArray<FAssetData> AssetList;
+		AssetRegistryModule.Get().GetAssets(Filter, AssetList);
+
 		if (isAxis)
 		{
-			for (const FInputAxisKeyMapping& axisMapping : UInputSettings::GetInputSettings()->GetAxisMappings()) inputNamesSet.FindOrAdd(axisMapping.AxisName);
+			for (const FInputAxisKeyMapping& axisMapping : UInputSettings::GetInputSettings()->GetAxisMappings())
+			{
+				inputNamesSet.FindOrAdd(axisMapping.AxisName);
+			}
 		}
 		else
 		{
-			for (const FInputActionKeyMapping& axisMapping : UInputSettings::GetInputSettings()->GetActionMappings()) inputNamesSet.FindOrAdd(axisMapping.ActionName);
+			for (const FInputActionKeyMapping& actionMapping : UInputSettings::GetInputSettings()->GetActionMappings())
+			{
+				inputNamesSet.FindOrAdd(actionMapping.ActionName);
+			}
+		}
+
+		TSet<UInputAction*> enhInputActionsSet;
+		TSet<FName> enhInputNamesSet2D; ////// TODO
+		TSet<FName> enhInputNamesSet3D; ////// TODO
+
+		for (const FAssetData& assetData : AssetList)
+		{
+			if (UInputAction* inputAction = Cast<UInputAction>(assetData.GetAsset()))
+			{
+				if (isAxis)
+				{
+					if (inputAction->ValueType == EInputActionValueType::Axis1D)
+					{
+						enhInputActionsSet.FindOrAdd(inputAction);
+					}
+					else if (inputAction->ValueType == EInputActionValueType::Axis2D)
+					{
+						enhInputNamesSet2D.FindOrAdd(inputAction->GetFName());
+					}
+					else if (inputAction->ValueType == EInputActionValueType::Axis3D)
+					{
+						enhInputNamesSet3D.FindOrAdd(inputAction->GetFName());
+					}
+				}
+				else
+				{
+					if (inputAction->ValueType == EInputActionValueType::Boolean)
+					{
+						enhInputActionsSet.FindOrAdd(inputAction);
+					}
+				}
+			}
 		}
 
 		int32 mappingIndex = 0;
@@ -702,25 +800,23 @@ protected:
 
 		TArray<TSharedPtr<FEdGraphSchemaAction>> schemaActions;
 
+		// Classic Input
 		for (const FName& inputName : inputNamesSet)
 		{
-			if (Node && Node->FindPin(inputName))
-			{
-				alreadyAdded.Add(mappingIndex);
-			}
-			else
-			{
-				TSharedPtr<FInputSequenceGraphSchemaAction_AddPin> schemaAction(new FInputSequenceGraphSchemaAction_AddPin(FText::GetEmpty(), FText::FromName(inputName), FText::Format(NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Tooltip", "Add {0} for {1}"), FText::FromString(isAxis ? "Axis pin" : "Action pin"), FText::FromName(inputName)), 0, 1));
-				schemaAction->InputName = inputName;
-				schemaAction->InputIndex = mappingIndex;
-				schemaAction->CorrectedInputIndex = 0;
-				schemaAction->IsAxis = isAxis;
-				schemaActions.Add(schemaAction);
-			}
-
-			mappingIndex++;
+			CollectAction(
+				inputName
+				, nullptr
+				, alreadyAdded
+				, mappingIndex
+				, FText::Format(simpleFormat, FText::FromString(isAxis ? "Axis pin" : "Action pin"), FText::FromName(inputName))
+				, 1
+				, isAxis
+				, false
+				, schemaActions
+			);
 		}
 
+		// Classic Input сomplex 2D
 		if (isAxis)
 		{
 			for (const FName& inputNameA : inputNamesSet)
@@ -731,25 +827,36 @@ protected:
 					{
 						FName pairedName = FName(inputNameA.ToString().Append(separator).Append(inputNameB.ToString()));
 
-						if (Node && Node->FindPin(pairedName))
-						{
-							alreadyAdded.Add(mappingIndex);
-						}
-						else
-						{
-							TSharedPtr<FInputSequenceGraphSchemaAction_AddPin> schemaAction(new FInputSequenceGraphSchemaAction_AddPin(FText::GetEmpty(), FText::FromName(pairedName), FText::Format(NSLOCTEXT("SInputSequenceParameterMenu_Pin", "AddPin_Tooltip", "Add Axis pin for 2D {0} ^ {1}"), FText::FromName(inputNameA), FText::FromName(inputNameB)), 0, 2));
-							schemaAction->InputName = pairedName;
-							schemaAction->InputIndex = mappingIndex;
-							schemaAction->CorrectedInputIndex = 0;
-							schemaAction->IsAxis = isAxis;
-							schemaAction->Is2DAxis = 1;
-							schemaActions.Add(schemaAction);
-						}
-
-						mappingIndex++;
+						CollectAction(
+							pairedName
+							, nullptr
+							, alreadyAdded
+							, mappingIndex
+							, FText::Format(complex2DFormat, FText::FromName(inputNameA), FText::FromName(inputNameB))
+							, 2
+							, true
+							, true
+							, schemaActions
+						);
 					}
 				}
 			}
+		}
+
+		// Enhanced Input
+		for (UInputAction* enhInputAction : enhInputActionsSet)
+		{
+			CollectAction(
+				enhInputAction->GetFName()
+				, enhInputAction
+				, alreadyAdded
+				, mappingIndex
+				, FText::Format(simpleFormat, FText::FromString(isAxis ? "Axis pin" : "Action pin"), FText::FromName(enhInputAction->GetFName()))
+				, isAxis ? 3 : 2
+				, isAxis
+				, false
+				, schemaActions
+			);
 		}
 
 		for (TSharedPtr<FEdGraphSchemaAction> schemaAction : schemaActions)
@@ -1860,7 +1967,11 @@ FText SGraphPin_2DAxis::ToolTipText_Raw_Label() const
 {
 	UEdGraphPin* GraphPin = GetPinObj();
 
-	return UInputSettings::GetInputSettings()->DoesAxisExist(GraphPin->PinName)
+	FString lhs;
+	FString rhs;
+	GraphPin->PinName.ToString().Split(separator, &lhs, &rhs);
+
+	return UInputSettings::GetInputSettings()->DoesAxisExist(FName(lhs)) && UInputSettings::GetInputSettings()->DoesAxisExist(FName(rhs))
 		? FText::GetEmpty()
 		: LOCTEXT("Label_TootTip_Error", "Cant find corresponding Axis name in Input Settings!");
 }
@@ -2151,11 +2262,24 @@ void SGraphPin_Action::Construct(const FArguments& Args, UEdGraphPin* InPin)
 	SetToolTip(SNew(SToolTip_Mock));
 }
 
+bool IsValidEnhancedInputPin(UEdGraphPin* GraphPin)
+{
+	if (UInputSequenceGraphNode_Input* inputNode = Cast<UInputSequenceGraphNode_Input>(GraphPin->GetOwningNode()))
+	{
+		if (inputNode->GetPinsInputActions().Contains(GraphPin->PinName))
+		{
+			return inputNode->GetPinsInputActions()[GraphPin->PinName].operator bool();
+		}
+	}
+
+	return false;
+}
+
 FSlateColor SGraphPin_Action::GetPinTextColor() const
 {
 	UEdGraphPin* GraphPin = GetPinObj();
 
-	if (!UInputSettings::GetInputSettings()->DoesActionExist(GraphPin->PinName)) return FLinearColor::Red;
+	if (!UInputSettings::GetInputSettings()->DoesActionExist(GraphPin->PinName) && !IsValidEnhancedInputPin(GraphPin)) return FLinearColor::Red;
 
 	if (GraphPin)
 
@@ -2189,9 +2313,9 @@ FText SGraphPin_Action::ToolTipText_Raw_Label() const
 {
 	UEdGraphPin* GraphPin = GetPinObj();
 
-	return UInputSettings::GetInputSettings()->DoesActionExist(GraphPin->PinName)
+	return (UInputSettings::GetInputSettings()->DoesActionExist(GraphPin->PinName) || IsValidEnhancedInputPin(GraphPin))
 		? FText::GetEmpty()
-		: LOCTEXT("Label_TootTip_Error", "Cant find corresponding Action name in Input Settings!");
+		: LOCTEXT("Label_TootTip_Error", "Cant find corresponding Action name in Input Settings or InputAction (Enhanced Input) in Content!");
 }
 
 EVisibility SGraphPin_Action::Visibility_Raw_SelfPin() const
@@ -2243,7 +2367,15 @@ FReply SGraphPin_Action::OnClicked_Raw_RemovePin() const
 
 			FromNode->Modify();
 
-			if (UInputSequenceGraphNode_Dynamic* dynNode = Cast<UInputSequenceGraphNode_Dynamic>(FromNode)) dynNode->OnUpdateGraphNode.ExecuteIfBound();
+			if (UInputSequenceGraphNode_Input* inputNode = Cast<UInputSequenceGraphNode_Input>(FromNode))
+			{
+				inputNode->GetPinsInputActions().Remove(FromPin->PinName);
+			}
+
+			if (UInputSequenceGraphNode_Dynamic* dynNode = Cast<UInputSequenceGraphNode_Dynamic>(FromNode))
+			{
+				dynNode->OnUpdateGraphNode.ExecuteIfBound();
+			}
 		}
 	}
 
@@ -2290,7 +2422,7 @@ FReply SGraphPin_Action::OnClicked_Raw_TogglePin() const
 			if (FromPin) FromPin->Modify();
 
 			// set outer to be the graph so it doesn't go away
-			UEdGraphNode* ResultNode = NewObject<UInputSequenceGraphNode_Release>(ParentGraph);
+			UInputSequenceGraphNode_Release* ResultNode = NewObject<UInputSequenceGraphNode_Release>(ParentGraph);
 			ParentGraph->AddNode(ResultNode, true, false);
 
 			ResultNode->CreateNewGuid();
@@ -2304,6 +2436,16 @@ FReply SGraphPin_Action::OnClicked_Raw_TogglePin() const
 			ResultNode->SnapToGrid(GetDefault<UEditorStyleSettings>()->GridSnapSize);;
 
 			ResultNode->SetFlags(RF_Transactional);
+
+			////// TODO Maybe cast FromNode in declaration line
+
+			if (UInputSequenceGraphNode_Input* fromInputNode = Cast<UInputSequenceGraphNode_Input>(FromNode))
+			{
+				if (fromInputNode->GetPinsInputActions().Contains(FromPin->PinName))
+				{
+					ResultNode->GetPinsInputActions().Add(FromPin->PinName, fromInputNode->GetPinsInputActions()[FromPin->PinName]);
+				}
+			}
 		}
 	}
 
@@ -2565,7 +2707,7 @@ FSlateColor SGraphPin_Axis::GetPinTextColor() const
 {
 	UEdGraphPin* GraphPin = GetPinObj();
 
-	if (!UInputSettings::GetInputSettings()->DoesAxisExist(GraphPin->PinName)) return FLinearColor::Red;
+	if (!UInputSettings::GetInputSettings()->DoesAxisExist(GraphPin->PinName) && !IsValidEnhancedInputPin(GraphPin)) return FLinearColor::Red;
 
 	if (GraphPin)
 
@@ -2671,9 +2813,9 @@ FText SGraphPin_Axis::ToolTipText_Raw_Label() const
 {
 	UEdGraphPin* GraphPin = GetPinObj();
 
-	return UInputSettings::GetInputSettings()->DoesAxisExist(GraphPin->PinName)
+	return (UInputSettings::GetInputSettings()->DoesAxisExist(GraphPin->PinName) || IsValidEnhancedInputPin(GraphPin))
 		? FText::GetEmpty()
-		: LOCTEXT("Label_TootTip_Error", "Cant find corresponding Axis name in Input Settings!");
+		: LOCTEXT("Label_TootTip_Error", "Cant find corresponding Axis name in Input Settings or InputAction (Enhanced Input) in Content!");
 }
 
 FText SGraphPin_Axis::ToolTipText_Raw_RemovePin() const { return LOCTEXT("RemovePin_Tooltip", "Click to remove Axis pin"); }
@@ -2826,7 +2968,7 @@ FReply SGraphPin_HubAdd::OnClicked_Raw()
 		UEdGraphNode::FCreatePinParams params;
 		params.Index = outputPinsCount;
 
-		AddPin(FromPin->GetOwningNode(), UInputSequenceGraphSchema::PC_Exec, FName(FString::FromInt(outputPinsCount)), params);
+		AddPin(FromPin->GetOwningNode(), UInputSequenceGraphSchema::PC_Exec, FName(FString::FromInt(outputPinsCount)), params, nullptr);
 	}
 
 	return FReply::Handled();

@@ -13,6 +13,12 @@
 	"EngineVersion": "5.1.0",
 	"CanContainContent": true,
 	"Installed": false,
+	"Plugins": [
+		{
+			"Name": "EnhancedInput",
+			"Enabled": true
+		}
+	],
 	"Modules": [
 		{
 			"Name": "InputSequence",

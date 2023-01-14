@@ -38,6 +38,8 @@ public:
 
 	const TArray<TSubclassOf<UInputSequenceEvent>>& GetResetEventClasses() const { return ResetEventClasses; }
 
+	TMap<FName, TObjectPtr<UObject>>& GetPinsInputActions() { return PinsInputActions; }
+
 protected:
 
 	UPROPERTY()
@@ -86,4 +88,7 @@ protected:
 	/* Event Classes to execute Event calls when this state is reset by ticking */
 	UPROPERTY(EditAnywhere, Category = "Release node", meta = (DisplayPriority = 32))
 		TArray<TSubclassOf<UInputSequenceEvent>> ResetEventClasses;
+
+	UPROPERTY()
+		TMap<FName, TObjectPtr<UObject>> PinsInputActions;
 };

@@ -45,6 +45,7 @@ struct FInputSequenceGraphSchemaAction_AddPin : public FEdGraphSchemaAction
 	GENERATED_BODY()
 
 	FName InputName;
+	TObjectPtr<UObject> InputAction;
 
 	int32 InputIndex;
 
@@ -53,10 +54,10 @@ struct FInputSequenceGraphSchemaAction_AddPin : public FEdGraphSchemaAction
 	uint8 IsAxis : 1;
 	uint8 Is2DAxis : 1;
 
-	FInputSequenceGraphSchemaAction_AddPin() : FEdGraphSchemaAction(), InputName(NAME_None), InputIndex(INDEX_NONE), CorrectedInputIndex(INDEX_NONE), IsAxis(0), Is2DAxis(0) {}
+	FInputSequenceGraphSchemaAction_AddPin() : FEdGraphSchemaAction(), InputName(NAME_None), InputAction(nullptr), InputIndex(INDEX_NONE), CorrectedInputIndex(INDEX_NONE), IsAxis(0), Is2DAxis(0) {}
 
 	FInputSequenceGraphSchemaAction_AddPin(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping, int32 InSectionID)
-		: FEdGraphSchemaAction(MoveTemp(InNodeCategory), MoveTemp(InMenuDesc), MoveTemp(InToolTip), InGrouping, FText::GetEmpty(), InSectionID), InputName(NAME_None), InputIndex(INDEX_NONE), CorrectedInputIndex(INDEX_NONE), IsAxis(0), Is2DAxis(0)
+		: FEdGraphSchemaAction(MoveTemp(InNodeCategory), MoveTemp(InMenuDesc), MoveTemp(InToolTip), InGrouping, FText::GetEmpty(), InSectionID), InputName(NAME_None), InputAction(nullptr), InputIndex(INDEX_NONE), CorrectedInputIndex(INDEX_NONE), IsAxis(0), Is2DAxis(0)
 	{}
 
 	virtual UEdGraphNode* PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode = true) override;
