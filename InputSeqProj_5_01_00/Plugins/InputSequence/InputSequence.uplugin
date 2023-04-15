@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 13,
-	"VersionName": "1.12",
+	"Version": 14,
+	"VersionName": "1.14",
 	"FriendlyName": "Input Sequence",
 	"Description": "Input Sequence",
 	"Category": "Input",
@@ -9,7 +9,7 @@
 	"CreatedByURL": "https://github.com/klauth86",
 	"DocsURL": "https://github.com/klauth86/UE_Plugin_InputSequence/wiki",
 	"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/product/1160b98e5fac40d09fc5cc5d4ae29bc7",
-	"SupportURL": "https://discordapp.com/users/514118808940707841",
+	"SupportURL": "https://discord.gg/TjxHxkwzRb",
 	"EngineVersion": "5.1.0",
 	"CanContainContent": true,
 	"Installed": false,
