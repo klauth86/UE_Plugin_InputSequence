@@ -158,12 +158,22 @@ void UInputSequenceAsset::OnInput(const float DeltaTime, const bool bGamePaused,
 					{
 						if (!state.PressedActions.Contains(pressedAction))
 						{
-							if (state.IsAxisNode || !state.InputActions.Contains(pressedAction))
+							if (state.IsAxisNode)
 							{
 								match = false;
 								RequestResetWithNode(activeIndex, state);
 
 								break;
+							}
+							else if (requirePreciseMatch && !state.isOverridingRequirePreciseMatch || state.isOverridingRequirePreciseMatch && state.requirePreciseMatch)
+							{
+								if (!state.InputActions.Contains(pressedAction))
+								{
+									match = false;
+									RequestResetWithNode(activeIndex, state);
+
+									break;
+								}
 							}
 						}
 					}
