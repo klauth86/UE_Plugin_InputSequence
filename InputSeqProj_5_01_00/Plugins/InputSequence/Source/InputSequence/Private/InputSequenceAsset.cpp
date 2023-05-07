@@ -355,6 +355,8 @@ void UInputSequenceAsset::RequestReset(UObject* sourceObject, const FString& sou
 	ResetSources[emplacedIndex].SourceContext = sourceContext;
 }
 
+void UInputSequenceAsset::ClearInputStates() { PressedActions.Empty(); }
+
 void UInputSequenceAsset::ProcessResetSources(TArray<FInputSequenceEventCall>& outEventCalls, TArray<FInputSequenceResetSource>& outResetSources)
 {
 	bool bResetAll = false;

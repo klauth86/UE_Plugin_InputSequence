@@ -236,6 +236,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence Asset")
 		void RequestReset(UObject* sourceObject, const FString& sourceContext);
 
+	UFUNCTION(BlueprintCallable, Category = "Input Sequence Asset")
+		void ClearInputStates();
+
 protected:
 
 	void MakeTransition(int32 fromIndex, const TSet<int32>& nextIndice, TArray<FInputSequenceEventCall>& outEventCalls);
