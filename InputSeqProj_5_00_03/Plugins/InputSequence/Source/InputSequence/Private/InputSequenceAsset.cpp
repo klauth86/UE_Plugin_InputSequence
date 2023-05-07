@@ -117,6 +117,7 @@ UInputSequenceAsset::UInputSequenceAsset(const FObjectInitializer& objInit) :Sup
 	bTickStatesWhenGamePaused = 0;
 
 	ActiveIndice.Empty();
+	PressedActions.Empty();
 	ResetSources.Empty();
 }
 
@@ -355,6 +356,8 @@ void UInputSequenceAsset::RequestReset(UObject* sourceObject, const FString& sou
 	ResetSources[emplacedIndex].SourceObject = sourceObject;
 	ResetSources[emplacedIndex].SourceContext = sourceContext;
 }
+
+void UInputSequenceAsset::ClearInputStates() { PressedActions.Empty(); }
 
 void UInputSequenceAsset::ProcessResetSources(TArray<FInputSequenceEventCall>& outEventCalls, TArray<FInputSequenceResetSource>& outResetSources)
 {
