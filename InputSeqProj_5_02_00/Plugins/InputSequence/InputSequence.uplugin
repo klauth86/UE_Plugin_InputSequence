@@ -1,0 +1,40 @@
+{
+	"FileVersion": 3,
+	"Version": 15,
+	"VersionName": "1.15",
+	"FriendlyName": "Input Sequence",
+	"Description": "Input Sequence",
+	"Category": "Input",
+	"CreatedBy": "Pentangle Studio",
+	"CreatedByURL": "https://github.com/klauth86",
+	"DocsURL": "https://github.com/klauth86/UE_Plugin_InputSequence/wiki",
+	"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/product/1160b98e5fac40d09fc5cc5d4ae29bc7",
+	"SupportURL": "https://discord.gg/TjxHxkwzRb",
+	"EngineVersion": "5.2.0",
+	"CanContainContent": true,
+	"Installed": false,
+	"Plugins": [
+		{
+			"Name": "EnhancedInput",
+			"Enabled": true
+		}
+	],
+	"Modules": [
+		{
+			"Name": "InputSequence",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64"
+			]
+		},
+		{
+			"Name": "InputSequenceEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64"
+			]
+		}
+	]
+}

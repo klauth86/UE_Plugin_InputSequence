@@ -9,7 +9,7 @@ public class InputSeqProj_5_02_00EditorTarget : TargetRules
 	{
 		Type = TargetType.Editor;
 		DefaultBuildSettings = BuildSettingsVersion.V2;
-
-		ExtraModuleNames.AddRange( new string[] { "InputSeqProj_5_02_00" } );
+        IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_2;
+        ExtraModuleNames.AddRange( new string[] { "InputSeqProj_5_02_00" } );
 	}
 }
